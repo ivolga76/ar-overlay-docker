@@ -1,0 +1,305 @@
+Ниже текст, который можно передать разработчику/Claude Code как техническое ТЗ для интеграции.
+
+**Что это за проект**
+Это React + Vite приложение для турнирного OBS-оверлея «Битва за Респект». Сейчас оно состоит из двух частей:
+
+- `/overlay` — прозрачный оверлей для OBS Browser Source.
+- `/admin` — админка организатора турнира.
+
+Текущее состояние хранится в `localStorage`, синхронизируется между вкладками и дополнительно рассылается через WebSocket-сервер `server.js` на `ws://localhost:3001`.
+
+Главная идея: админка меняет состояние турнира, оверлей подписан на это состояние и отображает виджеты: название турнира, раунд, игрока, счёт, задачи, таймер, усложнения, таблицу и т.д.
+
+**Ключевые файлы**
+- `src/state/TournamentContext.jsx` — главный стор турнира, вся бизнес-логика.
+- `src/state/tournamentDefaults.js` — дефолтное состояние.
+- `src/state/layoutDefaults.js` — список и позиции виджетов оверлея.
+- `src/pages/Overlay.jsx` — рендер OBS-оверлея.
+- `src/pages/Admin.jsx` — оболочка админки с вкладками.
+- `src/pages/AdminOverlayTab.jsx` — управление раундом, игроками, задачами, очками.
+- `src/pages/Templates.jsx` — библиотека шаблонов задач/усложнений.
+- `src/pages/LayoutEditor.jsx` — редактор расстановки виджетов.
+- `src/components/Timer.jsx` — таймер и timer-widget.
+- `src/hooks/useServerSync.js` — WebSocket клиент.
+- `server.js` — WebSocket sync-server.
+
+**Реализованные фичи**
+- Оверлей для OBS с прозрачным фоном.
+- Админка организатора.
+- Режимы турнира `1×1` и `2×2`.
+- Игроки и команды.
+- Текущий раунд.
+- Количество раундов настраивается.
+- Текущий игрок/команда.
+- Очки игрока/команды.
+- Ручное добавление/вычитание очков.
+- Задачи раунда.
+- Стоимость задачи в очках.
+- Автоматическое начисление очков при выполнении задачи.
+- Автоматическое вычитание очков при снятии выполнения.
+- Удаление задачи с откатом очков, если задача была выполнена.
+- Усложнения раунда.
+- Бонусные задания как расширение.
+- Шаблоны задач.
+- Шаблоны усложнений.
+- Добавление шаблонов в текущий оверлей через чекбоксы.
+- Удаление шаблонов.
+- Редактирование шаблонов задач.
+- Таймер с пресетами.
+- Таймер отображается в оверлее как виджет.
+- WebSocket-синхронизация между админкой и оверлеем.
+- `localStorage` для сохранения состояния.
+- Экспорт/импорт состояния турнира в JSON.
+- Звуки при смене участника и раунда.
+- Таблица участников.
+- Виджет предыдущего игрока.
+- Виджет турнирной таблицы.
+- Виджет усложнений.
+- Редактор расстановки виджетов drag-and-drop.
+- Масштабирование виджетов колёсиком мыши в редакторе расстановки.
+- Поддержка кастомного шрифта через `public/fonts/AvantGardeRU.*`.
+- Fallback-шрифт `Russo One`.
+
+**Нереализованные / требующие доработки фичи**
+1. В меню `Расстановка` в админке все виджеты должны запоминать свои позиции и не сбрасываться в дефолтное состояние.
+2. В меню `Расстановка` в админке реализовать отображение общего счёта турнира.
+3. В меню `Расстановка` в админке добавить добавление и удаление виджетов в оверлей.
+4. В меню `Расстановка` в админке добавить для виджетов функцию скрытия из оверлея.
+5. Реализовать компактный режим админки.
+6. В меню `Оверлей` в админке добавить возможность менять расстановку блоков.
+7. Исправить потенциальный баг: в `Templates.jsx` используется `updateComplicationTemplate`, но он не импортирован.
+8. Нормализовать кодировку русских строк в некоторых файлах, сейчас часть текста выглядит как mojibake.
+9. Перенести состояние из `localStorage`/памяти WebSocket-сервера в полноценное хранилище.
+10. Добавить авторизацию для админки.
+11. Разделить публичный overlay state и приватный admin state.
+12. Добавить API для турниров, матчей, раундов, участников и шаблонов.
+13. Добавить историю изменений/лог действий организатора.
+14. Добавить защиту от конфликтов при нескольких админах.
+
+**Оптимальный план интеграции в Next.js + Go API**
+
+1. **Выделить модель данных**
+
+   Нужно перенести текущую структуру состояния из `TournamentContext.jsx` в backend-модель:
+
+   ```ts
+   TournamentState {
+     mode
+     players
+     teams
+     rounds
+     currentRound
+     totalRounds
+     currentParticipantId
+     previousPlayerOrTeamId
+     currentPoints
+     tasks
+     extensions
+     showStandings
+     overlayLayout
+     timerData
+     tournamentName
+     soundEnabled
+   }
+   ```
+
+   В Go лучше разделить на сущности:
+
+   - `Tournament`
+   - `Participant`
+   - `Team`
+   - `Round`
+   - `Task`
+   - `Complication`
+   - `OverlayWidget`
+   - `TimerState`
+
+2. **Сделать Go API источником истины**
+
+   Вместо `localStorage` как основного хранилища:
+
+   - `GET /api/tournaments/:id/state`
+   - `PATCH /api/tournaments/:id/state`
+   - `POST /api/tournaments/:id/participants`
+   - `PATCH /api/tournaments/:id/tasks/:taskId`
+   - `POST /api/tournaments/:id/tasks`
+   - `DELETE /api/tournaments/:id/tasks/:taskId`
+   - `PATCH /api/tournaments/:id/layout/:widgetId`
+   - `POST /api/tournaments/:id/timer`
+   - `POST /api/tournaments/:id/reset`
+
+   `localStorage` можно оставить только как draft/cache.
+
+3. **Сделать WebSocket/SSE канал**
+
+   Для OBS-оверлея важна мгновенная синхронизация.
+
+   Рекомендуемый канал:
+
+   ```text
+   ws://site.com/ws/tournaments/:id
+   ```
+
+   События:
+
+   ```ts
+   tournament.state.updated
+   tournament.tasks.updated
+   tournament.layout.updated
+   tournament.timer.updated
+   tournament.participant.changed
+   tournament.round.changed
+   ```
+
+   Админка отправляет изменения в Go API, Go сохраняет их и рассылает событие всем overlay-клиентам.
+
+4. **Перенести React-компоненты в Next.js**
+
+   Из текущего проекта можно почти напрямую забрать:
+
+   - `Overlay.jsx`
+   - `AdminOverlayTab.jsx`
+   - `LayoutEditor.jsx`
+   - `Templates.jsx`
+   - `Timer.jsx`
+   - `styles.css`
+
+   Но `TournamentContext.jsx` нужно переписать: вместо локальной логики хранения он должен работать как клиент к API/WebSocket.
+
+   Пример архитектуры:
+
+   ```text
+   app/admin/tournaments/[id]/page.tsx
+   app/overlay/[id]/page.tsx
+   components/overlay/*
+   components/admin/*
+   lib/api/tournament.ts
+   lib/ws/useTournamentSocket.ts
+   stores/useTournamentStore.ts
+   ```
+
+5. **Сделать общий frontend store**
+
+   Для Next.js удобно использовать Zustand:
+
+   ```ts
+   useTournamentStore {
+     state
+     setStateFromServer()
+     updateTask()
+     updateLayout()
+     updateTimer()
+     selectParticipant()
+   }
+   ```
+
+   Важно: бизнес-логику начисления очков лучше держать на Go API, а frontend пусть только отправляет намерение:
+
+   ```ts
+   PATCH /tasks/:id { completed: true }
+   ```
+
+   Backend сам должен прибавить очки, чтобы не было расхождений.
+
+6. **Перенести overlay layout**
+
+   Текущий layout хранится как массив:
+
+   ```ts
+   {
+     id,
+     type,
+     x,
+     y,
+     scale,
+     visible
+   }
+   ```
+
+   Это хорошая модель. Её стоит сохранить в БД как JSONB или отдельную таблицу.
+
+   Для Next.js overlay:
+   - рендерить canvas `1920×1080`;
+   - масштабировать через `transform: scale(...)`;
+   - каждый widget рендерить absolute-positioned.
+
+7. **Сделать OBS-страницу максимально лёгкой**
+
+   `/overlay/[tournamentId]` должна:
+   - не требовать авторизации;
+   - грузить только публичное состояние;
+   - подписываться на WebSocket;
+   - не содержать админских контролов;
+   - иметь прозрачный фон;
+   - быть стабильной при reconnect.
+
+8. **Сделать админку сайта управляющей панелью**
+
+   В Next.js админка должна заменить текущий `/admin`.
+
+   Разделы:
+   - Турнир
+   - Участники
+   - Раунды
+   - Задачи
+   - Усложнения
+   - Таймер
+   - Расстановка
+   - Настройки OBS
+
+9. **Мигрировать шаблоны**
+
+   Сейчас шаблоны живут в `localStorage` через `templateStore.js`.
+
+   На сайте лучше хранить их в Go API:
+
+   - глобальные шаблоны;
+   - шаблоны конкретного турнира;
+   - шаблоны конкретного организатора.
+
+10. **Сохранить совместимость с OBS**
+
+   Итоговый URL должен быть вида:
+
+   ```text
+   https://site.com/overlay/{tournamentId}
+   ```
+
+   OBS:
+   - Width `1920`
+   - Height `1080`
+   - Transparent background
+   - желательно отключить custom CSS в OBS, если стили уже в проекте.
+
+**Что лучше не переносить как есть**
+- Не переносить `localStorage` как главный источник истины.
+- Не оставлять отдельный Node `server.js`, если уже есть Go backend.
+- Не держать начисление очков только на клиенте.
+- Не использовать текущий `start.bat` в продакшене.
+- Не копировать mojibake-строки без проверки кодировки.
+
+**Рекомендуемая схема**
+```text
+Next.js Admin
+   ↓ REST PATCH/POST
+Go API + DB
+   ↓ WebSocket broadcast
+Next.js Overlay page
+   ↓
+OBS Browser Source
+```
+
+**Минимальный MVP интеграции**
+1. В Go API создать `TournamentState`.
+2. В Next.js сделать `/overlay/[id]`.
+3. Перенести `Overlay.jsx`, `Timer.jsx`, стили виджетов.
+4. Сделать WebSocket подписку.
+5. В админке сайта добавить управление:
+   - текущий игрок;
+   - раунд;
+   - очки;
+   - задачи;
+   - таймер.
+6. Потом перенести `LayoutEditor`.
+
+Самая ценная часть текущего проекта для переноса: модель `TournamentState`, логика задач/очков, `overlayLayout`, виджетный рендер в `Overlay.jsx` и UX админки из `AdminOverlayTab.jsx`.

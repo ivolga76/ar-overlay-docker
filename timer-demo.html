@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Таймер — Битва за Респект</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap');
+
+  :root {
+    --display-font: 'Russo One', 'Rajdhani', Arial, sans-serif;
+    --cyan: #72d9ff;
+    --orange: #ff8a2a;
+    --bg: #07111d;
+    --panel: rgba(11, 24, 36, 0.92);
+    --line-muted: rgba(121, 146, 164, 0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: radial-gradient(circle at 14% 6%, rgba(114,217,255,0.13), transparent 28%),
+                linear-gradient(135deg, rgba(7,17,29,0.96), rgba(19,25,32,0.86));
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--display-font);
+    color: #e8f4ff;
+  }
+
+  /* Card frame — matching .admin-card.tech-panel */
+  .timer-card {
+    position: relative;
+    border: 1px solid var(--line-muted);
+    background: linear-gradient(118deg, rgba(255,255,255,0.07), transparent 20%),
+                linear-gradient(180deg, var(--panel), rgba(8,18,29,0.74));
+    box-shadow: 0 0 24px rgba(114,217,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.05);
+    clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    max-width: 320px;
+  }
+
+  .eyebrow {
+    color: var(--cyan);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: var(--display-font);
+  }
+
+  /* Presets row */
+  .presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .preset {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 2px;
+    padding: 8px 6px 6px;
+    font-family: var(--display-font);
+    background: rgba(114,217,255,0.08);
+    border: 1px solid rgba(114,217,255,0.22);
+    border-radius: 8px;
+    color: #fff;
+    cursor: default;
+    font-size: 14px;
+  }
+  .preset.active {
+    background: rgba(114,217,255,0.18);
+    border-color: var(--cyan);
+    box-shadow: 0 0 10px rgba(114,217,255,0.2);
+  }
+  .preset-value { font-size: 20px; font-weight: 700; }
+  .preset-unit { font-size: 10px; color: var(--cyan); text-transform: uppercase; }
+
+  /* Ring + digits */
+  .ring-wrap {
+    position: relative;
+    width: 190px;
+    height: 190px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.6s ease-out;
+  }
+  .ring-wrap.critical {
+    transform: scale(1.15);
+  }
+  .ring-wrap svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .digits {
+    font-family: var(--display-font);
+    font-size: 48px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(255,255,255,0.15);
+    text-align: center;
+    z-index: 1;
+    transition: color 0.4s, text-shadow 0.4s;
+  }
+  .digits.pulse {
+    animation: digit-pulse 1s ease-in-out infinite;
+  }
+  .digits.critical {
+    color: #ff2020;
+    text-shadow: 0 0 28px rgba(255,32,32,0.8);
+  }
+  .digits.flash {
+    animation: timer-flash 0.5s ease-out infinite;
+  }
+  .done-label {
+    position: absolute;
+    bottom: 38px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #ff4444;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    animation: timer-flash 1s ease-in-out infinite;
+    z-index: 1;
+  }
+
+  @keyframes digit-pulse {
+    0%, 85% { transform: scale(1); text-shadow: 0 0 20px rgba(255,255,255,0.15); }
+    92% { transform: scale(1.07); text-shadow: 0 0 32px rgba(114,217,255,0.6); }
+    100% { transform: scale(1); text-shadow: 0 0 20px rgba(255,255,255,0.15); }
+  }
+  @keyframes ring-pulse {
+    0%, 85% { opacity: 1; }
+    92% { opacity: 0.55; }
+    100% { opacity: 1; }
+  }
+  @keyframes timer-flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .ring-wrap.running svg circle:last-child {
+    animation: ring-pulse 1s ease-in-out infinite;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 8px;
+  }
+  .ctrl {
+    padding: 8px 18px;
+    font-family: var(--display-font);
+    font-size: 13px;
+    border: 1px solid rgba(114,217,255,0.22);
+    background: rgba(114,217,255,0.06);
+    color: #fff;
+    border-radius: 6px;
+    cursor: default;
+  }
+  .ctrl.pause { border-color: var(--orange); color: var(--orange); }
+  .ctrl.stop  { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.5); }
+
+  .info {
+    color: rgba(255,255,255,0.4);
+    font-size: 12px;
+    margin-top: 8px;
+    font-family: var(--display-font);
+  }
+</style>
+</head>
+<body>
+
+<div class="timer-card">
+  <p class="eyebrow">Таймер</p>
+
+  <div class="presets">
+    <div class="preset active"><span class="preset-value">30</span><span class="preset-unit">с</span></div>
+    <div class="preset"><span class="preset-value">1</span><span class="preset-unit">мин</span></div>
+    <div class="preset"><span class="preset-value">2</span><span class="preset-unit">мин</span></div>
+    <div class="preset"><span class="preset-value">3</span><span class="preset-unit">мин</span></div>
+  </div>
+
+  <div class="ring-wrap running" id="ringWrap">
+    <svg viewBox="0 0 190 190">
+      <circle cx="95" cy="95" r="85" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10"/>
+      <circle id="ringFront" cx="95" cy="95" r="85" fill="none"
+              stroke="hsl(120,85%,55%)" stroke-width="10" stroke-linecap="round"
+              stroke-dasharray="534.07" stroke-dashoffset="0"
+              transform="rotate(-90 95 95)"
+              style="transition: stroke-dashoffset 0.3s linear, stroke 0.5s;"/>
+    </svg>
+    <div class="digits pulse" id="digits">00:30</div>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl pause">Пауза</div>
+    <div class="ctrl stop">Стоп</div>
+  </div>
+
+  <p class="info">30-секундный отсчёт</p>
+</div>
+
+<script>
+  const TOTAL = 30000; // 30 seconds
+  const R = 85;
+  const STROKE = 10;
+  const FULL = 2 * Math.PI * R; // ~534.07
+
+  const ringWrap = document.getElementById('ringWrap');
+  const ringFront = document.getElementById('ringFront');
+  const digitsEl = document.getElementById('digits');
+
+  const startTime = Date.now();
+
+  function fmt(ms) {
+    const sec = Math.max(0, Math.ceil(ms / 1000));
+    return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+  }
+
+  function tick() {
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, TOTAL - elapsed);
+    const progress = remaining / TOTAL;
+    const offset = FULL * (1 - progress);
+
+    // Ring
+    const hue = 120 * progress;
+    ringFront.setAttribute('stroke-dashoffset', offset);
+    ringFront.setAttribute('stroke', `hsl(${hue},85%,55%)`);
+
+    // Digits
+    digitsEl.textContent = fmt(remaining);
+
+    // Critical at <= 10%
+    const isCritical = remaining > 0 && remaining <= TOTAL * 0.1;
+    if (isCritical) {
+      ringWrap.classList.add('critical');
+      digitsEl.classList.add('critical');
+      digitsEl.classList.remove('pulse');
+    }
+
+    // Done
+    if (remaining <= 0) {
+      ringWrap.classList.remove('running', 'critical');
+      digitsEl.classList.remove('pulse', 'critical');
+      digitsEl.classList.add('flash');
+      digitsEl.textContent = '00:00';
+
+      // Add done label
+      if (!document.querySelector('.done-label')) {
+        const label = document.createElement('div');
+        label.className = 'done-label';
+        label.textContent = 'ВРЕМЯ!';
+        ringWrap.appendChild(label);
+      }
+
+      // Red ring
+      ringFront.setAttribute('stroke', '#ff2020');
+      ringFront.setAttribute('stroke-dashoffset', FULL);
+      return;
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+</script>
+
+</body>
+</html>
