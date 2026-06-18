@@ -330,18 +330,7 @@ export default function AdminOverlayTab({
         <div className="admin-task-list">
           {(state.extensions?.complications || []).map((comp) => (
             <div className="task-item" key={comp.id}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={comp.active !== false}
-                  onChange={(event) =>
-                    updateComplication(comp.id, {
-                      active: event.target.checked,
-                    })
-                  }
-                />
-              </label>
-              <div className="task-edit-fields">
+              <div className="task-edit-fields" style={{ gridColumn: '1 / -1' }}>
                 <textarea
                   value={comp.text}
                   rows="2"
@@ -351,13 +340,15 @@ export default function AdminOverlayTab({
                     })
                   }
                 />
-                <button
-                  type="button"
-                  onClick={() => removeComplication(comp.id)}
-                  title="Удалить усложнение"
-                >
-                  ×
-                </button>
+                <span>
+                  Штраф
+                  <div className="task-points-stepper">
+                    <button type="button" onClick={() => adjustPoints(-1)} title="−1 за нарушение">−</button>
+                    <span>1</span>
+                    <button type="button" onClick={() => adjustPoints(1)} title="+1 (отмена штрафа)">+</button>
+                    <button type="button" onClick={() => removeComplication(comp.id)} title="Удалить усложнение">×</button>
+                  </div>
+                </span>
               </div>
             </div>
           ))}
