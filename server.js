@@ -100,6 +100,8 @@ const gameFields = [
 ];
 
 const state = loadState();
+// Timer is ephemeral — never survive a server restart
+state.timer = { remainingMs: 0, totalMs: 0, running: false, paused: false };
 saveState();
 
 const wss = new WebSocketServer({ port: PORT });

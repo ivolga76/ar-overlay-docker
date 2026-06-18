@@ -188,7 +188,7 @@ export default function Overlay() {
           const s = widget.scale || 1
           const { w, h } = getWidgetSize(widget.type, tasks)
 
-          const isFluid = widget.type === 'tasks' || widget.type === 'score'
+          const isFluid = widget.type === 'tasks' || widget.type === 'score' || widget.type === 'complications'
 
           return (
             <ErrorBoundary key={widget.id}>

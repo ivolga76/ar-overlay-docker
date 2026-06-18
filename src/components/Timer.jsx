@@ -63,6 +63,7 @@ export default function Timer() {
       setDisplay(fmt(rem));
       setRemainingMs(rem);
       if (rem <= 0) {
+        teardown();
         setPhase('done');
         s.phase = 'done';
         setTimerData({ remainingMs: 0, totalMs: s.total, running: false, paused: false });
@@ -109,6 +110,7 @@ export default function Timer() {
       setDisplay(fmt(rem));
       setRemainingMs(rem);
       if (rem <= 0) {
+        teardown();
         setPhase('done');
         s.phase = 'done';
         setTimerData({ remainingMs: 0, totalMs: s.total, running: false, paused: false });
@@ -136,12 +138,16 @@ export default function Timer() {
     const s = stateRef.current;
     s.until = null;
     s.total = 0;
+    s.pausedRemaining = 0;
     setTotalMs(0);
     setRemainingMs(0);
     setDisplay('00:00');
     setPhase('idle');
     s.phase = 'idle';
-    setTimerData({ remainingMs: 0, totalMs: 0, running: false, paused: false });
+    const idle = { remainingMs: 0, totalMs: 0, running: false, paused: false };
+    setTimerData(idle);
+    // Safety: re-send idle state after a frame to ensure overlay gets the signal
+    requestAnimationFrame(() => setTimerData(idle));
   }
 
   useEffect(() => () => teardown(), []);
@@ -193,7 +199,11 @@ export default function Timer() {
 export function TimerWidget() {
   const { state } = useTournament();
   const td = state.timerData || {};
-  if (!td.running && !td.remainingMs) return null;
+
+  // Hide widget when timer is idle/stopped: not running AND no remaining time.
+  // Using <= 0 instead of ! for robustness against edge-case values (null, undefined, negative).
+  const isIdle = !td.running && (td.remainingMs == null || td.remainingMs <= 0);
+  if (isIdle) return null;
 
   const total = td.totalMs || 0;
   const rem = td.remainingMs || 0;
