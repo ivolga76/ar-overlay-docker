@@ -35,7 +35,7 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('overlay');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Keyboard: Arrow keys switch participants
+  // Keyboard: Arrow keys switch participants, +/- adjust points
   useEffect(() => {
     function onKeyDown(e) {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
@@ -48,10 +48,18 @@ export default function Admin() {
         e.preventDefault();
         selectParticipant(participants[idx + 1].id);
       }
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        adjustPoints(1);
+      }
+      if (e.key === '-') {
+        e.preventDefault();
+        adjustPoints(-1);
+      }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [participants, state.currentParticipantId, selectParticipant]);
+  }, [participants, state.currentParticipantId, selectParticipant, adjustPoints]);
 
   // Sound effects — only on real user actions, not WebSocket sync
   useEffect(() => {
