@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import Timer from '../components/Timer.jsx';
+import { getTemplates } from '../state/templateStore.js';
 
 function TeamLabel({ participant }) {
   if (!participant?.players?.length) return null;
@@ -18,14 +19,13 @@ export default function AdminOverlayTab({
   adjustPoints,
   setCurrentPoints,
   updateTask,
+  addTask,
   removeTask,
   addPlayer,
   addTeam,
   removeParticipant,
   toggleStandings,
   resetTournament,
-  addBonusTask,
-  removeBonusTask,
   addComplication,
   updateComplication,
   removeComplication,
@@ -37,9 +37,85 @@ export default function AdminOverlayTab({
   const [teamName, setTeamName] = useState('');
   const [teamFirst, setTeamFirst] = useState('');
   const [teamSecond, setTeamSecond] = useState('');
-  const [bonusText, setBonusText] = useState('');
-  const [complicationText, setComplicationText] = useState('');
   const [pointsDraft, setPointsDraft] = useState(String(state.currentPoints ?? 0));
+
+  // Roulette: available templates not yet added to the round
+  const roulettePool = useMemo(() => {
+    const allTemplates = getTemplates().tasks;
+    const usedTexts = new Set(state.tasks.map((t) => t.text.trim()));
+    return allTemplates.filter((tpl) => !usedTexts.has(tpl.text));
+  }, [state.tasks]);
+
+  const [spinning, setSpinning] = useState(false);
+  const [spinningText, setSpinningText] = useState('');
+
+  // Complication roulette
+  const complicationRoulettePool = useMemo(() => {
+    const allTemplates = getTemplates().complications;
+    const usedTexts = new Set((state.extensions?.complications || []).map((c) => c.text.trim()));
+    return allTemplates.filter((tpl) => !usedTexts.has(tpl.text));
+  }, [state.extensions?.complications]);
+
+  const [spinningComp, setSpinningComp] = useState(false);
+  const [spinningCompText, setSpinningCompText] = useState('');
+
+  function handleComplicationRoulette() {
+    if (complicationRoulettePool.length === 0 || spinningComp) return;
+
+    const pick = complicationRoulettePool[Math.floor(Math.random() * complicationRoulettePool.length)];
+
+    setSpinningComp(true);
+    const start = Date.now();
+    const DURATION = 3000;
+
+    function cycle() {
+      const elapsed = Date.now() - start;
+      if (elapsed >= DURATION) {
+        addComplication(pick.text);
+        setSpinningComp(false);
+        setSpinningCompText('');
+        return;
+      }
+      const randomComp = complicationRoulettePool[Math.floor(Math.random() * complicationRoulettePool.length)];
+      setSpinningCompText(randomComp.text);
+
+      const progress = elapsed / DURATION;
+      const delay = progress < 0.7 ? 50 : progress < 0.85 ? 120 : 250;
+      setTimeout(cycle, delay);
+    }
+
+    cycle();
+  }
+
+  function handleRoulette() {
+    if (roulettePool.length === 0 || spinning) return;
+
+    // Pick the final task before animation starts
+    const pick = roulettePool[Math.floor(Math.random() * roulettePool.length)];
+
+    setSpinning(true);
+    const start = Date.now();
+    const DURATION = 3000;
+
+    function cycle() {
+      const elapsed = Date.now() - start;
+      if (elapsed >= DURATION) {
+        addTask(pick.text, pick.points);
+        setSpinning(false);
+        setSpinningText('');
+        return;
+      }
+      const randomTask = roulettePool[Math.floor(Math.random() * roulettePool.length)];
+      setSpinningText(randomTask.text);
+
+      // Speed: fast (0-70%) → medium (70-85%) → slow (85-100%)
+      const progress = elapsed / DURATION;
+      const delay = progress < 0.7 ? 50 : progress < 0.85 ? 120 : 250;
+      setTimeout(cycle, delay);
+    }
+
+    cycle();
+  }
 
   // Sync draft when state.currentPoints changes externally (e.g. WebSocket, task completion)
   // but only if the user isn't currently editing
@@ -169,6 +245,15 @@ export default function AdminOverlayTab({
             <h2>Задачи ({state.tasks.length})</h2>
           </div>
           <div className="button-pair">
+            <button
+              type="button"
+              className={`roulette-btn${spinning ? ' spinning' : ''}`}
+              onClick={handleRoulette}
+              disabled={roulettePool.length === 0 || spinning}
+              title={roulettePool.length === 0 ? 'Все шаблоны уже добавлены' : spinning ? 'Подбор задания…' : 'Добавить случайное задание из шаблонов'}
+            >
+              {spinning ? spinningText : 'Рулетка'}
+            </button>
             <button type="button" onClick={() => setActiveTab('templates')}>
               Добавить
             </button>
@@ -227,6 +312,15 @@ export default function AdminOverlayTab({
             <h2>Усложнения ({(state.extensions?.complications || []).length})</h2>
           </div>
           <div className="button-pair">
+            <button
+              type="button"
+              className={`roulette-btn${spinningComp ? ' spinning' : ''}`}
+              onClick={handleComplicationRoulette}
+              disabled={complicationRoulettePool.length === 0 || spinningComp}
+              title={complicationRoulettePool.length === 0 ? 'Все шаблоны усложнений уже добавлены' : spinningComp ? 'Подбор усложнения…' : 'Добавить случайное усложнение из шаблонов'}
+            >
+              {spinningComp ? spinningCompText : 'Рулетка'}
+            </button>
             <button type="button" onClick={() => setActiveTab('templates')}>
               Добавить
             </button>
@@ -329,70 +423,6 @@ export default function AdminOverlayTab({
               </button>
             </article>
           ))}
-        </div>
-      </section>
-
-      <section className="admin-card tech-panel">
-        <p className="eyebrow">Расширения</p>
-        <div className="stub-stack">
-          <article>
-            <h3>Бонусные задания</h3>
-            {(state.extensions?.bonusTasks || []).map((bonus) => (
-              <p key={bonus.id}>
-                {bonus.text}{' '}
-                <button
-                  type="button"
-                  className="icon-danger"
-                  onClick={() => removeBonusTask(bonus.id)}
-                  style={{ padding: '0 6px', fontSize: 14 }}
-                >
-                  ×
-                </button>
-              </p>
-            ))}
-            <form
-              className="inline-form"
-              onSubmit={(e) => { e.preventDefault(); addBonusTask(bonusText); setBonusText(''); }}
-              style={{ marginTop: 8 }}
-            >
-              <input
-                type="text"
-                value={bonusText}
-                onChange={(e) => setBonusText(e.target.value)}
-                placeholder="Новое бонусное задание"
-              />
-              <button type="submit" disabled={!bonusText.trim()}>Добавить</button>
-            </form>
-          </article>
-          <article>
-            <h3>Усложнения</h3>
-            {(state.extensions?.complications || []).map((comp) => (
-              <p key={comp.id}>
-                {comp.text}{' '}
-                <button
-                  type="button"
-                  className="icon-danger"
-                  onClick={() => removeComplication(comp.id)}
-                  style={{ padding: '0 6px', fontSize: 14 }}
-                >
-                  ×
-                </button>
-              </p>
-            ))}
-            <form
-              className="inline-form"
-              onSubmit={(e) => { e.preventDefault(); addComplication(complicationText); setComplicationText(''); }}
-              style={{ marginTop: 8 }}
-            >
-              <input
-                type="text"
-                value={complicationText}
-                onChange={(e) => setComplicationText(e.target.value)}
-                placeholder="Новое усложнение"
-              />
-              <button type="submit" disabled={!complicationText.trim()}>Добавить</button>
-            </form>
-          </article>
         </div>
       </section>
 

@@ -27,8 +27,6 @@ export default function Admin() {
     removeParticipant,
     toggleStandings,
     resetTournament,
-    addBonusTask,
-    removeBonusTask,
     addComplication,
     updateComplication,
     removeComplication,
@@ -186,14 +184,13 @@ export default function Admin() {
               adjustPoints={adjustPoints}
               setCurrentPoints={setCurrentPoints}
               updateTask={updateTask}
+              addTask={addTask}
               removeTask={removeTask}
               addPlayer={addPlayer}
               addTeam={addTeam}
               removeParticipant={removeParticipant}
               toggleStandings={toggleStandings}
               resetTournament={resetTournament}
-              addBonusTask={addBonusTask}
-              removeBonusTask={removeBonusTask}
               addComplication={addComplication}
               updateComplication={updateComplication}
               removeComplication={removeComplication}

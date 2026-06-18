@@ -562,6 +562,21 @@ textarea:focus {
   gap: 8px;
 }
 
+.roulette-btn {
+  min-width: 140px;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.roulette-btn.spinning {
+  background: rgba(91, 255, 155, 0.12);
+  box-shadow: 0 0 14px rgba(91, 255, 155, 0.25);
+  cursor: wait;
+}
+
 .admin-task-list {
   display: grid;
   gap: 10px;
