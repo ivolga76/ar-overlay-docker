@@ -12,7 +12,7 @@
 
 ### Оверлей для OBS
 
-![Оверлей](overlay.png)
+![Оверлей](sample_overlay.png)
 
 ---
 
