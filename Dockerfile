@@ -21,7 +21,6 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # Copy build artifacts
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/public ./public
 
 # Copy server files and config
 COPY --from=build /app/package.json ./
