@@ -1,26 +1,26 @@
 import { useTournament } from '../state/TournamentContext'
 import { OVERLAY_WIDTH, OVERLAY_HEIGHT, getWidgetSize } from '../state/layoutDefaults'
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { TimerWidget } from '../components/Timer'
 import ErrorBoundary from '../components/ErrorBoundary'
 
-function TournamentName({ data }) {
+const TournamentName = memo(function TournamentName({ data }) {
   return (
     <div className="overlay-widget-inner">
       <div className="overlay-title">{data.tournamentName || 'Битва за Респект'}</div>
     </div>
   )
-}
+})
 
-function Round({ data }) {
+const Round = memo(function Round({ data }) {
   return (
     <div className="overlay-widget-inner">
       <div className="overlay-round">Раунд {data.currentRound} из {data.totalRounds}</div>
     </div>
   )
-}
+})
 
-function ScoreWidget({ data }) {
+const ScoreWidget = memo(function ScoreWidget({ data }) {
   const prevPoints = useRef(data.points)
   const [animClass, setAnimClass] = useState('')
 
@@ -43,9 +43,9 @@ function ScoreWidget({ data }) {
       </div>
     </div>
   )
-}
+})
 
-function Complications({ data }) {
+const Complications = memo(function Complications({ data }) {
   const comps = data.complications || []
   if (!comps.length) return null
   return (
@@ -63,9 +63,9 @@ function Complications({ data }) {
       </div>
     </div>
   )
-}
+})
 
-function Tasks({ data }) {
+const Tasks = memo(function Tasks({ data }) {
   const count = data.tasks.length
   const completed = data.tasks.filter(t => t.completed).length
   const gridClass = count <= 3 ? `overlay-tasks-grid tasks-row-${count}` : 'overlay-tasks-grid tasks-multi'
@@ -89,9 +89,9 @@ function Tasks({ data }) {
       </div>
     </div>
   )
-}
+})
 
-function PreviousPlayer({ data }) {
+const PreviousPlayer = memo(function PreviousPlayer({ data }) {
   if (!data.previousPlayer) return null
   return (
     <div className="overlay-widget-inner">
@@ -106,9 +106,9 @@ function PreviousPlayer({ data }) {
       </div>
     </div>
   )
-}
+})
 
-function Standings({ data }) {
+const Standings = memo(function Standings({ data }) {
   if (!data.showStandings || !data.standings?.length) return null
   return (
     <div className="overlay-widget-inner">
@@ -126,7 +126,7 @@ function Standings({ data }) {
       </div>
     </div>
   )
-}
+})
 
 const WIDGET_COMPONENTS = {
   'tournament-name': TournamentName,
@@ -157,7 +157,9 @@ export default function Overlay() {
 
   const layout = state.overlayLayout || []
   const tasks = state.tasks || []
-  const data = {
+
+  // useMemo без timerData — виджеты не перерендерятся на каждый тик таймера
+  const data = useMemo(() => ({
     tournamentName: state.tournamentName,
     currentRound: state.currentRound,
     totalRounds: state.totalRounds,
@@ -168,7 +170,17 @@ export default function Overlay() {
     showStandings: state.showStandings,
     standings,
     complications: state.extensions?.complications || [],
-  }
+  }), [
+    state.tournamentName,
+    state.currentRound,
+    state.totalRounds,
+    currentParticipant,
+    tasks,
+    previousParticipant,
+    state.showStandings,
+    standings,
+    state.extensions?.complications,
+  ])
 
   return (
     <div

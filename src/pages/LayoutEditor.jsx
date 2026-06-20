@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { memo, useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useTournament } from '../state/TournamentContext';
 import { WIDGET_TYPES, OVERLAY_WIDTH, OVERLAY_HEIGHT, createDefaultLayout, getWidgetSize } from '../state/layoutDefaults';
 
@@ -15,14 +15,15 @@ const WIDGET_LABELS = {
 
 export default function LayoutEditor() {
   const { state, updateLayout, resetLayout } = useTournament();
+  // Читаем только нужные поля — timerData игнорируется
   const layout = state.overlayLayout;
+  const tasks = state.tasks;
 
   const [selectedId, setSelectedId] = useState(null);
-  const [dragging, setDragging] = useState(null); // { id, offsetX, offsetY }
+  const [dragging, setDragging] = useState(null);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 960, h: 540 });
 
-  // Measure container on mount and resize
   useEffect(() => {
     const measure = () => {
       if (containerRef.current) {
@@ -35,11 +36,12 @@ export default function LayoutEditor() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  const scaleFactor = Math.min(
+  // useMemo защищает пересчёт от timerData-ререндеров
+  const scaleFactor = useMemo(() => Math.min(
     containerSize.w / OVERLAY_WIDTH,
     containerSize.h / OVERLAY_HEIGHT,
     1.0
-  );
+  ), [containerSize.w, containerSize.h]);
 
   const toScreen = useCallback((x, y) => ({
     sx: x * scaleFactor,
@@ -51,20 +53,21 @@ export default function LayoutEditor() {
     y: Math.round(sy / scaleFactor),
   }), [scaleFactor]);
 
-  // --- Drag handling ---
-  const handleMouseDown = (e, widget) => {
+  // Стабильный handleMouseDown
+  const handleMouseDown = useCallback((e, widget) => {
     e.preventDefault();
     setSelectedId(widget.id);
     const containerRect = containerRef.current.getBoundingClientRect();
-    const mx = e.clientX - containerRect.left - 16; // 16px padding
+    const mx = e.clientX - containerRect.left - 16;
     const my = e.clientY - containerRect.top - 16;
-    const { sx, sy } = toScreen(widget.x, widget.y);
+    const sx = widget.x * scaleFactor;
+    const sy = widget.y * scaleFactor;
     setDragging({
       id: widget.id,
       offsetX: mx - sx,
       offsetY: my - sy,
     });
-  };
+  }, [scaleFactor]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -92,7 +95,6 @@ export default function LayoutEditor() {
     };
   }, [dragging, scaleFactor, toLayout, updateLayout]);
 
-  // --- Wheel -> scale ---
   const handleWheel = useCallback((e) => {
     if (!selectedId) return;
     e.preventDefault();
@@ -103,7 +105,16 @@ export default function LayoutEditor() {
     updateLayout(selectedId, { scale: Math.round(newScale * 100) / 100 });
   }, [selectedId, layout, updateLayout]);
 
-  const selectedWidget = layout.find(w => w.id === selectedId);
+  const selectedWidget = useMemo(() =>
+    layout.find(w => w.id === selectedId),
+    [layout, selectedId]
+  );
+
+  // ★ Ключевой useMemo: виджеты не пересоздаются на тики таймера
+  const widgets = useMemo(() =>
+    renderWidgets(layout, tasks, scaleFactor, handleMouseDown, selectedId, dragging),
+    [layout, tasks, scaleFactor, handleMouseDown, selectedId, dragging]
+  );
 
   return (
     <div className="layout-editor">
@@ -129,7 +140,6 @@ export default function LayoutEditor() {
             height: OVERLAY_HEIGHT * scaleFactor,
           }}
         >
-          {/* Grid */}
           <svg
             className="layout-grid"
             width={OVERLAY_WIDTH * scaleFactor}
@@ -141,23 +151,22 @@ export default function LayoutEditor() {
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
-            {/* Center crosshair */}
             <line x1={OVERLAY_WIDTH / 2 * scaleFactor} y1="0" x2={OVERLAY_WIDTH / 2 * scaleFactor} y2={OVERLAY_HEIGHT * scaleFactor} stroke="rgba(114,217,255,0.15)" strokeWidth="1" />
             <line x1="0" y1={OVERLAY_HEIGHT / 2 * scaleFactor} x2={OVERLAY_WIDTH * scaleFactor} y2={OVERLAY_HEIGHT / 2 * scaleFactor} stroke="rgba(114,217,255,0.15)" strokeWidth="1" />
           </svg>
 
-          {/* Widgets */}
-          {renderWidgets(layout, state.tasks, toScreen, handleMouseDown, selectedId, dragging)}
+          {widgets}
         </div>
       </div>
     </div>
   );
 }
 
-function renderWidgets(layout, tasks, toScreen, handleMouseDown, selectedId, dragging) {
+function renderWidgets(layout, tasks, scaleFactor, handleMouseDown, selectedId, dragging) {
   const taskList = tasks || [];
   return layout.filter(w => w.visible !== false).map(widget => {
-    const { sx, sy } = toScreen(widget.x, widget.y);
+    const sx = widget.x * scaleFactor;
+    const sy = widget.y * scaleFactor;
     const isSelected = widget.id === selectedId;
     const s = widget.scale || 1;
     const { w, h } = getWidgetSize(widget.type, taskList);
