@@ -4,7 +4,7 @@ export const OVERLAY_HEIGHT = 1080;
 export const WIDGET_TYPES = ['tournament-name', 'round', 'score', 'tasks', 'timer', 'previous-player', 'standings', 'complications'];
 
 // Base dimensions of each widget type (unscaled, in px @ 1920×1080)
-export function getWidgetSize(type, tasks, complications) {
+export function getWidgetSize(type, tasks, complications, standings) {
   if (type === 'tasks') {
     const count = (tasks || []).length;
     const cols = count <= 3 ? 1 : 2;
@@ -16,7 +16,11 @@ export function getWidgetSize(type, tasks, complications) {
   if (type === 'round') return { w: 220, h: 30 };
   if (type === 'score') return { w: 260, h: 44 };
   if (type === 'previous-player') return { w: 280, h: 80 };
-  if (type === 'standings') return { w: 360, h: 300 };
+  if (type === 'standings') {
+    const count = (standings || []).length;
+    const pairs = Math.ceil(count / 2);
+    return { w: 420, h: 40 + pairs * 28 + (pairs - 1) * 6 };
+  }
   if (type === 'complications') {
     const count = (complications || []).length;
     const rows = Math.max(1, count);
@@ -130,7 +134,7 @@ export function createDefaultLayout() {
       type: 'standings',
       x: 1480,
       y: 100,
-      scale: 1.0,
+      scale: 1.2,
       visible: false,
     },
     {

@@ -14,7 +14,7 @@ const WIDGET_LABELS = {
 };
 
 export default function LayoutEditor() {
-  const { state, updateLayout, resetLayout, setFullLayout, toggleWidgetVisibility } = useTournament();
+  const { state, updateLayout, resetLayout, setFullLayout, toggleWidgetVisibility, standings } = useTournament();
   // Читаем только нужные поля — timerData игнорируется
   const layout = state.overlayLayout;
   const tasks = state.tasks;
@@ -119,8 +119,8 @@ export default function LayoutEditor() {
 
   // ★ Ключевой useMemo: виджеты не пересоздаются на тики таймера
   const widgets = useMemo(() =>
-    renderWidgets(layout, tasks, complications, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility),
-    [layout, tasks, complications, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility]
+    renderWidgets(layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility),
+    [layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility]
   );
 
   // --- Profile handlers ---
@@ -254,15 +254,16 @@ export default function LayoutEditor() {
   );
 }
 
-function renderWidgets(layout, tasks, complications, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility) {
+function renderWidgets(layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility) {
   const taskList = tasks || [];
   const compList = complications || [];
+  const standList = standings || [];
   return layout.map(widget => {
     const sx = widget.x * scaleFactor;
     const sy = widget.y * scaleFactor;
     const isSelected = widget.id === selectedId;
     const s = widget.scale || 1;
-    const { w, h } = getWidgetSize(widget.type, taskList, compList);
+    const { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
     const isHidden = widget.visible === false;
 
     return (

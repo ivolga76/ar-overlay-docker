@@ -1,11 +1,20 @@
 import { useState } from 'react';
 import { useTournament } from '../state/TournamentContext.jsx';
+import { useAuth } from '../state/AuthContext.jsx';
 
 export default function Settings() {
   const { state, setTournamentName, setTotalRounds, setSoundEnabled } = useTournament();
+  const { user, changePassword } = useAuth();
 
   const [nameDraft, setNameDraft] = useState(state.tournamentName || '');
   const [roundsDraft, setRoundsDraft] = useState(String(state.totalRounds || 3));
+
+  // Password change state
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNew, setConfirmNew] = useState('');
+  const [secMsg, setSecMsg] = useState({ text: '', type: '' });
+  const [secBusy, setSecBusy] = useState(false);
 
   function handleNameBlur() {
     const trimmed = nameDraft.trim();
@@ -29,8 +38,36 @@ export default function Settings() {
     setSoundEnabled(!state.soundEnabled);
   }
 
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    setSecMsg({ text: '', type: '' });
+
+    if (!oldPassword || !newPassword || !confirmNew) {
+      setSecMsg({ text: 'Заполните все поля', type: 'error' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setSecMsg({ text: 'Новый пароль должен быть не менее 6 символов', type: 'error' });
+      return;
+    }
+    if (newPassword !== confirmNew) {
+      setSecMsg({ text: 'Новые пароли не совпадают', type: 'error' });
+      return;
+    }
+
+    setSecBusy(true);
+    try {
+      await changePassword(oldPassword, newPassword);
+      // changePassword clears auth → user will be redirected to login
+    } catch (err) {
+      setSecMsg({ text: err.message || 'Ошибка сервера', type: 'error' });
+      setSecBusy(false);
+    }
+  }
+
   return (
     <section className="admin-grid settings-grid">
+      {/* Tournament settings */}
       <section className="admin-card tech-panel">
         <p className="eyebrow">Турнир</p>
         <h2>Основные настройки</h2>
@@ -91,6 +128,7 @@ export default function Settings() {
         </div>
       </section>
 
+      {/* Sound settings */}
       <section className="admin-card tech-panel">
         <p className="eyebrow">Звук</p>
         <h2>Звуковые эффекты</h2>
@@ -112,6 +150,7 @@ export default function Settings() {
         </p>
       </section>
 
+      {/* Data management */}
       <section className="admin-card tech-panel">
         <p className="eyebrow">Данные</p>
         <h2>Управление данными</h2>
@@ -162,6 +201,68 @@ export default function Settings() {
             </button>
           </div>
         </div>
+      </section>
+
+      {/* Security — password change */}
+      <section className="admin-card tech-panel security-card">
+        <p className="eyebrow">Безопасность</p>
+        <h2>Смена пароля</h2>
+
+        {user && (
+          <p className="setting-hint">
+            Вы вошли как <strong>{user.email}</strong>
+          </p>
+        )}
+
+        <form onSubmit={handleChangePassword}>
+          <div className="field-row">
+            <label htmlFor="sec-old">Текущий пароль</label>
+            <input
+              id="sec-old"
+              type="password"
+              value={oldPassword}
+              onChange={(e) => { setOldPassword(e.target.value); setSecMsg({ text: '', type: '' }); }}
+              placeholder="••••••"
+              autoComplete="current-password"
+            />
+          </div>
+
+          <div className="field-row">
+            <label htmlFor="sec-new">Новый пароль</label>
+            <input
+              id="sec-new"
+              type="password"
+              value={newPassword}
+              onChange={(e) => { setNewPassword(e.target.value); setSecMsg({ text: '', type: '' }); }}
+              placeholder="Не менее 6 символов"
+              autoComplete="new-password"
+            />
+          </div>
+
+          <div className="field-row">
+            <label htmlFor="sec-confirm">Подтверждение</label>
+            <input
+              id="sec-confirm"
+              type="password"
+              value={confirmNew}
+              onChange={(e) => { setConfirmNew(e.target.value); setSecMsg({ text: '', type: '' }); }}
+              placeholder="Повторите новый пароль"
+              autoComplete="new-password"
+            />
+          </div>
+
+          {secMsg.text && (
+            <p className={`security-msg ${secMsg.type}`}>{secMsg.text}</p>
+          )}
+
+          <button
+            type="submit"
+            className="change-password-btn"
+            disabled={secBusy}
+          >
+            {secBusy ? 'Смена пароля…' : 'Сменить пароль'}
+          </button>
+        </form>
       </section>
     </section>
   );

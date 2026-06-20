@@ -107,18 +107,35 @@ const PreviousPlayer = memo(function PreviousPlayer({ data }) {
 })
 
 const Standings = memo(function Standings({ data }) {
-  if (!data.showStandings || !data.standings?.length) return null
+  if (!data.standings?.length) return null
+  const list = data.standings
+  // Pair up participants for versus display
+  const pairs = []
+  for (let i = 0; i < list.length; i += 2) {
+    pairs.push({
+      left: list[i],
+      right: list[i + 1] || null,
+    })
+  }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header" style={{ marginBottom: 8 }}>
-        Турнирная таблица
+      <div className="overlay-tasks-header vs-header">
+        vs
       </div>
-      <div className="overlay-standings-list">
-        {data.standings.map((p, i) => (
-          <div key={p.id} className="overlay-standings-row">
-            <span className="standings-pos">{i + 1}</span>
-            <span className="standings-name">{p.name}</span>
-            <span className="standings-score">{p.totalPoints ?? 0} очк.</span>
+      <div className="vs-scoreboard">
+        {pairs.map((pair, i) => (
+          <div key={pair.left.id} className="vs-row">
+            <div className="vs-team vs-team-left">
+              <span className="vs-name">{pair.left.name}</span>
+            </div>
+            <div className="vs-score-block">
+              <span className="vs-score vs-score-left">{pair.left.totalPoints ?? 0}</span>
+              <span className="vs-colon">:</span>
+              <span className="vs-score vs-score-right">{pair.right ? pair.right.totalPoints ?? 0 : 0}</span>
+            </div>
+            <div className="vs-team vs-team-right">
+              {pair.right && <span className="vs-name">{pair.right.name}</span>}
+            </div>
           </div>
         ))}
       </div>
@@ -137,7 +154,7 @@ const WIDGET_COMPONENTS = {
   'complications': Complications,
 }
 
-export default function Overlay() {
+export default function Overlay({ userId }) {
   const { state, currentParticipant, previousParticipant, standings } = useTournament()
   const containerRef = useRef(null)
   const [viewScale, setViewScale] = useState(1)
@@ -196,9 +213,9 @@ export default function Overlay() {
           if (!Widget) return null
           const isHidden = widget.visible === false
           const s = widget.scale || 1
-          const { w, h } = getWidgetSize(widget.type, tasks)
+          const { w, h } = getWidgetSize(widget.type, tasks, data.complications, data.standings)
 
-          const isFluid = widget.type === 'tasks' || widget.type === 'score' || widget.type === 'complications'
+          const isFluid = widget.type === 'tasks' || widget.type === 'score' || widget.type === 'complications' || widget.type === 'standings'
 
           return (
             <ErrorBoundary key={widget.id}>

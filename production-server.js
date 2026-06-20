@@ -1,3 +1,4 @@
+import express from 'express';
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -12,6 +13,7 @@ const STATE_DIR = join(DATA_DIR, 'state');
 const USERS_FILE = join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = join(DATA_DIR, 'sessions.json');
 const MAX_AUDIT_LOG = 300;
+const DIST_DIR = join(__dirname, 'dist');
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -28,31 +30,6 @@ function readJson(path, fallback = null) {
 function writeJson(path, data) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(data, null, 2), 'utf8');
-}
-
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', (c) => chunks.push(c));
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-      } catch {
-        resolve(null);
-      }
-    });
-    req.on('error', reject);
-  });
-}
-
-function jsonResponse(res, status, data) {
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  });
-  res.end(JSON.stringify(data));
 }
 
 // ── Auth store ───────────────────────────────────────────────
@@ -81,155 +58,8 @@ function authenticate(req) {
   const token = header.slice(7);
   const session = findSession(token);
   if (!session) return null;
-  const user = users.find((u) => u.id === session.userId);
-  return user || null;
+  return users.find((u) => u.id === session.userId) || null;
 }
-
-// ── Auth routes ──────────────────────────────────────────────
-
-async function handleRegister(req, res) {
-  const body = await parseBody(req);
-  if (!body || !body.email || !body.password) {
-    return jsonResponse(res, 400, { error: 'Email и пароль обязательны' });
-  }
-
-  const email = body.email.toLowerCase().trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return jsonResponse(res, 400, { error: 'Некорректный email' });
-  }
-  if (body.password.length < 6) {
-    return jsonResponse(res, 400, { error: 'Пароль должен быть не менее 6 символов' });
-  }
-  if (findUserByEmail(email)) {
-    return jsonResponse(res, 409, { error: 'Пользователь с таким email уже существует' });
-  }
-
-  const salt = randomBytes(16).toString('hex');
-  const passwordHash = hashPassword(body.password, salt);
-  const user = {
-    id: randomUUID(),
-    email,
-    passwordHash,
-    salt,
-    createdAt: new Date().toISOString(),
-  };
-
-  users.push(user);
-  saveUsers();
-
-  // Auto-login after registration
-  const token = randomUUID();
-  sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
-  saveSessions();
-
-  console.log(`[auth] registered user: ${email}`);
-  jsonResponse(res, 201, { token, user: { email: user.email, id: user.id } });
-}
-
-async function handleLogin(req, res) {
-  const body = await parseBody(req);
-  if (!body || !body.email || !body.password) {
-    return jsonResponse(res, 400, { error: 'Email и пароль обязательны' });
-  }
-
-  const email = body.email.toLowerCase().trim();
-  const user = findUserByEmail(email);
-  if (!user) {
-    return jsonResponse(res, 401, { error: 'Неверный email или пароль' });
-  }
-
-  const hash = hashPassword(body.password, user.salt);
-  if (!timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(user.passwordHash, 'hex'))) {
-    return jsonResponse(res, 401, { error: 'Неверный email или пароль' });
-  }
-
-  const token = randomUUID();
-  sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
-  saveSessions();
-
-  console.log(`[auth] login: ${email}`);
-  jsonResponse(res, 200, { token, user: { email: user.email, id: user.id } });
-}
-
-function handleMe(req, res) {
-  const user = authenticate(req);
-  if (!user) {
-    return jsonResponse(res, 401, { error: 'Не авторизован' });
-  }
-  jsonResponse(res, 200, { user: { email: user.email, id: user.id } });
-}
-
-async function handleChangePassword(req, res) {
-  const user = authenticate(req);
-  if (!user) {
-    return jsonResponse(res, 401, { error: 'Не авторизован' });
-  }
-
-  const body = await parseBody(req);
-  if (!body || !body.oldPassword || !body.newPassword) {
-    return jsonResponse(res, 400, { error: 'Текущий и новый пароль обязательны' });
-  }
-  if (body.newPassword.length < 6) {
-    return jsonResponse(res, 400, { error: 'Новый пароль должен быть не менее 6 символов' });
-  }
-
-  const oldHash = hashPassword(body.oldPassword, user.salt);
-  if (!timingSafeEqual(Buffer.from(oldHash, 'hex'), Buffer.from(user.passwordHash, 'hex'))) {
-    return jsonResponse(res, 403, { error: 'Неверный текущий пароль' });
-  }
-
-  const newSalt = randomBytes(16).toString('hex');
-  user.salt = newSalt;
-  user.passwordHash = hashPassword(body.newPassword, newSalt);
-  saveUsers();
-
-  // Invalidate all sessions for this user (force re-login)
-  sessions = sessions.filter((s) => s.userId !== user.id);
-  saveSessions();
-
-  console.log(`[auth] password changed: ${user.email}`);
-  jsonResponse(res, 200, { ok: true });
-}
-
-// ── HTTP server ──────────────────────────────────────────────
-
-const httpServer = createServer(async (req, res) => {
-  // CORS preflight
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    });
-    return res.end();
-  }
-
-  const url = new URL(req.url, `http://localhost:${PORT}`);
-
-  // POST /api/register
-  if (req.method === 'POST' && url.pathname === '/api/register') {
-    return handleRegister(req, res);
-  }
-
-  // POST /api/login
-  if (req.method === 'POST' && url.pathname === '/api/login') {
-    return handleLogin(req, res);
-  }
-
-  // GET /api/me
-  if (req.method === 'GET' && url.pathname === '/api/me') {
-    return handleMe(req, res);
-  }
-
-  // POST /api/change-password
-  if (req.method === 'POST' && url.pathname === '/api/change-password') {
-    return handleChangePassword(req, res);
-  }
-
-  // Fallback
-  res.writeHead(404);
-  res.end('Not found');
-});
 
 // ── Per-user tournament state ────────────────────────────────
 
@@ -252,24 +82,10 @@ const DEFAULT_STATE = {
 };
 
 const gameFields = [
-  'mode',
-  'currentRound',
-  'currentPoints',
-  'currentParticipantId',
-  'tasks',
-  'players',
-  'teams',
-  'showStandings',
-  'extensions',
-  'rounds',
-  'previousPlayerOrTeamId',
-  'overlayLayout',
-  'totalRounds',
-  'tournamentName',
-  'soundEnabled',
+  'mode', 'currentRound', 'currentPoints', 'currentParticipantId',
+  'tasks', 'players', 'teams', 'showStandings', 'extensions', 'rounds',
+  'previousPlayerOrTeamId', 'overlayLayout', 'totalRounds', 'tournamentName', 'soundEnabled',
 ];
-
-// ── Per-user state store ─────────────────────────────────────
 
 const userStates = new Map();
 
@@ -280,7 +96,6 @@ function stateFile(userId) {
 function loadState(userId) {
   const cached = userStates.get(userId);
   if (cached) return cached;
-
   try {
     mkdirSync(STATE_DIR, { recursive: true });
     if (!existsSync(stateFile(userId))) {
@@ -345,25 +160,24 @@ function isStaleClientUpdate(userId, msg) {
   return msg.version < Number(st.version || 0);
 }
 
-// ── Migration: copy old global state to existing users ───────
+// ── Migration (run once) ─────────────────────────────────────
 
 function migrateGlobalState() {
   const oldFile = join(DATA_DIR, 'tournament-state.json');
   if (!existsSync(oldFile)) return;
-  
+
   try {
     const globalState = JSON.parse(readFileSync(oldFile, 'utf8'));
     if (!globalState || Object.keys(globalState).length <= 2) {
-      // Empty or nearly-empty global state — skip
       console.log('[migrate] global state empty, skipping');
       return;
     }
-    
+
     let migrated = 0;
     for (const user of users) {
       const sf = stateFile(user.id);
-      if (existsSync(sf)) continue; // already has own state
-      
+      if (existsSync(sf)) continue;
+
       const userState = {
         ...DEFAULT_STATE,
         ...JSON.parse(JSON.stringify(globalState)),
@@ -374,9 +188,8 @@ function migrateGlobalState() {
       console.log(`[migrate] created state for user: ${user.email}`);
       migrated++;
     }
-    
+
     if (migrated > 0) {
-      // Rename old file as backup
       const backupFile = join(DATA_DIR, 'tournament-state.json.backup');
       writeFileSync(backupFile, readFileSync(oldFile));
       writeFileSync(oldFile, JSON.stringify({ migrated: true, at: new Date().toISOString(), to: migrated }));
@@ -387,23 +200,165 @@ function migrateGlobalState() {
   }
 }
 
-// Run migration on startup
 migrateGlobalState();
 
-// ── WebSocket server (attached to HTTP) ─────────────────────
+// ── Express app ──────────────────────────────────────────────
+
+const app = express();
+app.use(express.json());
+app.disable('x-powered-by');
+
+// CORS — allow any origin in production (overlay is embedded in OBS)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
+// ── Auth routes ──────────────────────────────────────────────
+
+app.post('/api/register', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email и пароль обязательны' });
+  }
+  const cleanEmail = email.toLowerCase().trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return res.status(400).json({ error: 'Некорректный email' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
+  }
+  if (findUserByEmail(cleanEmail)) {
+    return res.status(409).json({ error: 'Пользователь с таким email уже существует' });
+  }
+
+  const salt = randomBytes(16).toString('hex');
+  const user = {
+    id: randomUUID(),
+    email: cleanEmail,
+    passwordHash: hashPassword(password, salt),
+    salt,
+    createdAt: new Date().toISOString(),
+  };
+  users.push(user);
+  saveUsers();
+
+  const token = randomUUID();
+  sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
+  saveSessions();
+
+  console.log(`[auth] registered user: ${cleanEmail}`);
+  res.status(201).json({ token, user: { email: user.email, id: user.id } });
+});
+
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email и пароль обязательны' });
+  }
+
+  const cleanEmail = email.toLowerCase().trim();
+  const user = findUserByEmail(cleanEmail);
+  if (!user) {
+    return res.status(401).json({ error: 'Неверный email или пароль' });
+  }
+
+  const hash = hashPassword(password, user.salt);
+  if (!timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(user.passwordHash, 'hex'))) {
+    return res.status(401).json({ error: 'Неверный email или пароль' });
+  }
+
+  const token = randomUUID();
+  sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() });
+  saveSessions();
+
+  console.log(`[auth] login: ${cleanEmail}`);
+  res.status(200).json({ token, user: { email: user.email, id: user.id } });
+});
+
+app.get('/api/me', (req, res) => {
+  const user = authenticate(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Не авторизован' });
+  }
+  res.json({ user: { email: user.email, id: user.id } });
+});
+
+app.post('/api/change-password', async (req, res) => {
+  const user = authenticate(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Не авторизован' });
+  }
+
+  const { oldPassword, newPassword } = req.body || {};
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ error: 'Текущий и новый пароль обязательны' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Новый пароль должен быть не менее 6 символов' });
+  }
+
+  const oldHash = hashPassword(oldPassword, user.salt);
+  if (!timingSafeEqual(Buffer.from(oldHash, 'hex'), Buffer.from(user.passwordHash, 'hex'))) {
+    return res.status(403).json({ error: 'Неверный текущий пароль' });
+  }
+
+  const newSalt = randomBytes(16).toString('hex');
+  user.salt = newSalt;
+  user.passwordHash = hashPassword(newPassword, newSalt);
+  saveUsers();
+
+  sessions = sessions.filter((s) => s.userId !== user.id);
+  saveSessions();
+
+  console.log(`[auth] password changed: ${user.email}`);
+  res.json({ ok: true });
+});
+
+// ── Serve static files from dist/ ────────────────────────────
+
+app.use(express.static(DIST_DIR, {
+  maxAge: '1h',
+  immutable: true,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  },
+}));
+
+// ── SPA fallback — all non-API routes → index.html ───────────
+
+app.get('*', (req, res) => {
+  const indexPath = join(DIST_DIR, 'index.html');
+  if (existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send('AR Overlay Server — build not found. Run `pnpm build` first.');
+  }
+});
+
+// ── HTTP server + WebSocket ──────────────────────────────────
+
+const httpServer = createServer(app);
 
 const wss = new WebSocketServer({ server: httpServer });
 
-console.log(`[sync-server] HTTP + WebSocket started on ws://localhost:${PORT}`);
-console.log(`[sync-server] per-user state: ${STATE_DIR}/`);
+console.log(`[production-server] HTTP + WebSocket starting on port ${PORT}`);
+console.log(`[production-server] per-user state: ${STATE_DIR}/`);
 
 wss.on('connection', (ws) => {
   const id = `${Date.now() % 10000}-${Math.random().toString(16).slice(2, 6)}`;
-  ws.userId = null;           // set after successful auth
-  ws.subscribedUserId = null; // set after subscribe (overlay)
+  ws.userId = null;
+  ws.subscribedUserId = null;
   ws.authenticated = false;
-  
-  console.log(`[sync-server] client #${id} connected (total: ${wss.clients.size})`);
+
+  console.log(`[sync] client #${id} connected (total: ${wss.clients.size})`);
 
   ws.on('message', (raw) => {
     let msg;
@@ -413,38 +368,26 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // ── Auth message — authenticate admin connections
     if (msg.type === 'auth') {
       const session = msg.token ? findSession(msg.token) : null;
       if (session) {
         ws.authenticated = true;
         ws.userId = session.userId;
         ws.send(JSON.stringify({ type: 'auth', ok: true, userId: session.userId }));
-        
-        // Send this user's state
         loadState(ws.userId);
         const st = userStates.get(ws.userId);
-        ws.send(JSON.stringify({
-          type: 'full',
-          state: publicState(ws.userId),
-          version: st ? st.version : 0,
-        }));
+        ws.send(JSON.stringify({ type: 'full', state: publicState(ws.userId), version: st ? st.version : 0 }));
         if (st && st.timer && (st.timer.running || st.timer.remainingMs > 0)) {
-          ws.send(JSON.stringify({
-            type: 'timer',
-            timer: { ...st.timer },
-            version: st.version,
-          }));
+          ws.send(JSON.stringify({ type: 'timer', timer: { ...st.timer }, version: st.version }));
         }
-        console.log(`[sync-server] client #${id} authenticated as user ${ws.userId}`);
+        console.log(`[sync] client #${id} authenticated as user ${ws.userId}`);
       } else {
         ws.send(JSON.stringify({ type: 'auth', ok: false }));
-        console.log(`[sync-server] client #${id} auth failed`);
+        console.log(`[sync] client #${id} auth failed`);
       }
       return;
     }
 
-    // ── Subscribe message — overlay subscribes to a userId
     if (msg.type === 'subscribe') {
       const targetUserId = msg.userId;
       if (!targetUserId) {
@@ -454,26 +397,16 @@ wss.on('connection', (ws) => {
       ws.subscribedUserId = targetUserId;
       loadState(targetUserId);
       const st = userStates.get(targetUserId);
-      ws.send(JSON.stringify({
-        type: 'full',
-        state: publicState(targetUserId),
-        version: st ? st.version : 0,
-      }));
+      ws.send(JSON.stringify({ type: 'full', state: publicState(targetUserId), version: st ? st.version : 0 }));
       if (st && st.timer && (st.timer.running || st.timer.remainingMs > 0)) {
-        ws.send(JSON.stringify({
-          type: 'timer',
-          timer: { ...st.timer },
-          version: st.version,
-        }));
+        ws.send(JSON.stringify({ type: 'timer', timer: { ...st.timer }, version: st.version }));
       }
-      console.log(`[sync-server] client #${id} subscribed to user ${targetUserId}`);
+      console.log(`[sync] client #${id} subscribed to user ${targetUserId}`);
       return;
     }
 
-    // ── Determine effective userId for this message ──
     const effectiveUserId = ws.authenticated ? ws.userId : ws.subscribedUserId;
     if (!effectiveUserId) {
-      // Not authenticated and not subscribed — reject game-state messages
       if (['full', 'update', 'updateTasks', 'timer'].includes(msg.type)) {
         ws.send(JSON.stringify({
           type: 'error',
@@ -484,10 +417,8 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // Ensure state is loaded for this user
     loadState(effectiveUserId);
 
-    // ── Game-state messages (auth or subscribe required) ──
     if (['full', 'update', 'updateTasks', 'timer'].includes(msg.type) && isStaleClientUpdate(effectiveUserId, msg)) {
       ws.send(JSON.stringify({
         type: 'conflict',
@@ -546,11 +477,11 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('error', (e) => {
-    console.error(`[sync-server] error on #${id}:`, e.message);
+    console.error(`[sync] error on #${id}:`, e.message);
   });
 
   ws.on('close', () => {
-    console.log(`[sync-server] client #${id} disconnected (total: ${wss.clients.size})`);
+    console.log(`[sync] client #${id} disconnected (total: ${wss.clients.size})`);
   });
 });
 
@@ -558,7 +489,6 @@ function broadcast(data, userId) {
   const json = JSON.stringify(data);
   wss.clients.forEach((client) => {
     if (client.readyState !== 1) return;
-    // Send to clients whose authenticated userId OR subscribedUserId matches
     const matchAuth = client.authenticated && client.userId === userId;
     const matchSub = !client.authenticated && client.subscribedUserId === userId;
     if (matchAuth || matchSub) {
@@ -567,23 +497,18 @@ function broadcast(data, userId) {
   });
 }
 
-wss.on('error', (e) => {
-  console.error('[sync-server] server error:', e.message);
+// ── Start ────────────────────────────────────────────────────
+
+httpServer.listen(PORT, () => {
+  console.log(`[production-server] listening on http://0.0.0.0:${PORT}`);
 });
 
 process.on('uncaughtException', (e) => {
-  console.error('[sync-server] uncaughtException:', e.message);
-  // Save all in-memory states on crash
+  console.error('[production-server] uncaughtException:', e.message);
   for (const [userId] of userStates) {
     try { saveState(userId); } catch (_) {}
   }
 });
 process.on('unhandledRejection', (e) => {
-  console.error('[sync-server] unhandledRejection:', e?.message || e);
-});
-
-// ── Start ────────────────────────────────────────────────────
-
-httpServer.listen(PORT, () => {
-  console.log(`[sync-server] listening on http://localhost:${PORT}`);
+  console.error('[production-server] unhandledRejection:', e?.message || e);
 });

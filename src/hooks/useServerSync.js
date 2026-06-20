@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
-export default function useServerSync() {
+export default function useServerSync(token = null, subscribeUserId = null) {
   const wsRef = useRef(null);
   const handlersRef = useRef({});
   const reconnectTimeout = useRef(null);
@@ -8,6 +8,11 @@ export default function useServerSync() {
   const mountedRef = useRef(true);
   // Generation counter — only the latest connection matters
   const genRef = useRef(0);
+  // Keep token and subscribeUserId in refs so the connect closure always has latest
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+  const subscribeUserIdRef = useRef(subscribeUserId);
+  subscribeUserIdRef.current = subscribeUserId;
 
   const send = useCallback((data) => {
     const ws = wsRef.current;
@@ -27,12 +32,29 @@ export default function useServerSync() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
     const gen = ++genRef.current;
-    const socket = new WebSocket('ws://localhost:3001');
+    const wsUrl = import.meta.env.DEV
+      ? 'ws://localhost:3001'
+      : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
+    const socket = new WebSocket(wsUrl);
     wsRef.current = socket;
 
     socket.onopen = () => {
       if (gen !== genRef.current) return; // stale socket
       console.log('[sync] connected');
+
+      // Send auth token if available (admin mode)
+      const currentToken = tokenRef.current;
+      if (currentToken) {
+        socket.send(JSON.stringify({ type: 'auth', token: currentToken }));
+        console.log('[sync] auth token sent');
+      }
+      // Send subscribe if in overlay mode (no token)
+      const currentSubId = subscribeUserIdRef.current;
+      if (!currentToken && currentSubId) {
+        socket.send(JSON.stringify({ type: 'subscribe', userId: currentSubId }));
+        console.log('[sync] subscribed to user:', currentSubId);
+      }
+
       setConnected(true);
     };
 
@@ -63,6 +85,20 @@ export default function useServerSync() {
       // onclose will fire after this
     };
   }, []);
+
+  // Reconnect when token or subscribeUserId changes
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (ws) {
+      try { ws.close(); } catch (_) {}
+      wsRef.current = null;
+    }
+    if (reconnectTimeout.current) {
+      clearTimeout(reconnectTimeout.current);
+      reconnectTimeout.current = null;
+    }
+    connect();
+  }, [token, subscribeUserId]);
 
   useEffect(() => {
     mountedRef.current = true;

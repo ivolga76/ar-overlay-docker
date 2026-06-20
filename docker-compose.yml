@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: ar-overlay
+    ports:
+      - '3001:3001'
+    volumes:
+      - app_data:/app/.data
+    restart: always
+    environment:
+      - NODE_ENV=production
+
+volumes:
+  app_data:

@@ -8,3 +8,17 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .data/
+
+# Backups
+backups/
+
+# Test scripts
+*.ps1
+
+# Temporary
+src/styles.css_Backup.txt
+timer-demo.html
+screenshot.mjs
+Migration.txt
+Promt_AR-overlay.txt
+skills-lock.json

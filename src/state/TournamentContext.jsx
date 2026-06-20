@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { STORAGE_KEY, createDefaultState } from './tournamentDefaults.js';
 import { createDefaultLayout } from './layoutDefaults.js';
 import useServerSync from '../hooks/useServerSync.js';
+import { useAuth } from './AuthContext.jsx';
 
 const TournamentContext = createContext(null);
 
@@ -152,7 +153,7 @@ function commitCurrentRound(state) {
   return { ...state, rounds: [...rounds, entry] };
 }
 
-export function TournamentProvider({ children }) {
+export function TournamentProvider({ children, overlayUserId = null }) {
   const [state, setState] = useState(() => {
     try {
       return normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY)));
@@ -162,7 +163,8 @@ export function TournamentProvider({ children }) {
   });
 
   const syncingFromServer = useRef(false);
-  const { send, on, connected } = useServerSync();
+  const { token } = useAuth();
+  const { send, on, connected } = useServerSync(token, overlayUserId);
 
   // — WebSocket sync: receive game state ———————————————————————————
   useEffect(() => {
@@ -553,12 +555,28 @@ export function TournamentProvider({ children }) {
   }, []);
 
   const toggleWidgetVisibility = useCallback((widgetId) => {
-    setState((current) => touch({
-      ...current,
-      overlayLayout: current.overlayLayout.map((w) =>
-        w.id === widgetId ? { ...w, visible: !(w.visible !== false) } : w
-      ),
-    }));
+    setState((current) => {
+      // Standings "focus mode": toggling standings hides/shows all other widgets
+      if (widgetId === 'standings') {
+        const standingsW = current.overlayLayout.find(w => w.id === 'standings');
+        const standingsBecomingVisible = standingsW ? standingsW.visible === false : true;
+        return touch({
+          ...current,
+          overlayLayout: current.overlayLayout.map((w) => {
+            if (w.id === 'standings') return { ...w, visible: standingsBecomingVisible };
+            // Other widgets: hide when standings appears, show when standings disappears
+            return { ...w, visible: !standingsBecomingVisible };
+          }),
+        });
+      }
+      // Normal toggle for other widgets
+      return touch({
+        ...current,
+        overlayLayout: current.overlayLayout.map((w) =>
+          w.id === widgetId ? { ...w, visible: !(w.visible !== false) } : w
+        ),
+      });
+    });
   }, []);
 
 

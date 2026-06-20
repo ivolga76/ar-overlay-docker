@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTournament } from '../state/TournamentContext.jsx';
+import { useAuth } from '../state/AuthContext.jsx';
 import AdminOverlayTab from './AdminOverlayTab.jsx';
 import Templates from './Templates.jsx';
 import Settings from './Settings.jsx';
@@ -34,6 +35,7 @@ export default function Admin() {
 
   const [activeTab, setActiveTab] = useState('overlay');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { logout, user } = useAuth();
 
   // Keyboard: Arrow keys switch participants, +/- adjust points
   useEffect(() => {
@@ -117,9 +119,20 @@ export default function Admin() {
           <h1>Битва за Респект</h1>
         </div>
         <nav>
-          <a href="/overlay" target="_blank" rel="noreferrer">
+          <a href={`/overlay/${user.id}`} target="_blank" rel="noreferrer">
             Открыть overlay
           </a>
+          <button
+            type="button"
+            title="Скопировать ссылку на оверлей"
+            onClick={() => {
+              const url = `${window.location.origin}/overlay/${user.id}`;
+              navigator.clipboard.writeText(url);
+            }}
+            style={{ fontSize: 13, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            📋
+          </button>
           <button type="button" onClick={toggleStandings}>
             {state.showStandings ? 'Скрыть таблицу' : 'Показать таблицу'}
           </button>
@@ -173,6 +186,18 @@ export default function Admin() {
             >
               <span className="sidebar-icon">⚙</span>
               <span className="sidebar-label">Настройки</span>
+            </button>
+
+            <hr className="sidebar-divider" />
+
+            <button
+              type="button"
+              className="sidebar-tab sidebar-logout"
+              onClick={logout}
+              title="Выйти из аккаунта"
+            >
+              <span className="sidebar-icon">⏻</span>
+              <span className="sidebar-label">Выход</span>
             </button>
           </nav>
         </aside>

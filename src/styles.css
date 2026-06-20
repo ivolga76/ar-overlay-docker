@@ -399,6 +399,116 @@ button {
   font-family: var(--display-font);
 }
 
+/* ── Versus scoreboard (esports broadcast style) ── */
+.vs-header {
+  text-align: center;
+  font-size: 25px !important;
+  color: var(--orange) !important;
+  letter-spacing: 5px !important;
+  margin-bottom: -6px !important;
+  text-shadow: 0 0 20px rgba(255, 138, 42, 0.4);
+  animation: vs-pulse 2s ease-in-out infinite;
+}
+
+@keyframes vs-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; text-shadow: 0 0 28px rgba(255, 138, 42, 0.7); }
+}
+
+.vs-scoreboard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  animation: vs-row-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.vs-row:nth-child(1) { animation-delay: 0.05s; }
+.vs-row:nth-child(2) { animation-delay: 0.12s; }
+.vs-row:nth-child(3) { animation-delay: 0.19s; }
+.vs-row:nth-child(4) { animation-delay: 0.26s; }
+.vs-row:nth-child(5) { animation-delay: 0.33s; }
+
+@keyframes vs-row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.vs-team {
+  flex: 1;
+  min-width: 0;
+}
+
+.vs-team-left {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.vs-team-right {
+  text-align: left;
+  padding-left: 12px;
+}
+
+.vs-name {
+  font-family: var(--display-font);
+  font-size: 16px;
+  color: #f5fbff;
+  text-shadow: 0 0 10px rgba(114, 217, 255, 0.25);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vs-score-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vs-score {
+  font-family: var(--display-font);
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 12px rgba(114, 217, 255, 0.5);
+  min-width: 24px;
+  text-align: center;
+  transition: color 0.3s, text-shadow 0.3s;
+}
+
+.vs-score-left {
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(114, 217, 255, 0.6);
+}
+
+.vs-score-right {
+  color: var(--orange);
+  text-shadow: 0 0 12px rgba(255, 138, 42, 0.6);
+}
+
+.vs-colon {
+  font-family: var(--display-font);
+  font-size: 16px;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
 .admin-shell {
   min-height: 100vh;
   display: flex;
@@ -1631,6 +1741,15 @@ textarea:focus {
   margin: 2px 0;
 }
 
+.sidebar-logout {
+  margin-top: auto;
+}
+
+.sidebar-logout:hover {
+  background: rgba(255, 80, 80, 0.12) !important;
+  color: #ff6b6b !important;
+}
+
 .sidebar-profile-list {
   display: flex;
   flex-direction: column;
@@ -2136,4 +2255,174 @@ textarea:focus {
   font-weight: 700;
   color: #fff;
   letter-spacing: 1px;
+}
+
+/* ── Auth page ─────────────────────────────────────────────── */
+
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 14% 6%, rgba(114, 217, 255, 0.13), transparent 28%),
+    linear-gradient(135deg, rgba(7, 17, 29, 0.96), rgba(19, 25, 32, 0.86));
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 28px 32px 32px;
+}
+
+.auth-card h1 {
+  margin: 0 0 4px;
+  color: #fff8ef;
+  font-family: var(--display-font);
+  font-size: 32px;
+  letter-spacing: 0;
+  text-shadow: 0 0 18px rgba(255, 138, 42, 0.55);
+}
+
+.auth-subtitle {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-family: var(--display-font);
+  font-size: 13px;
+}
+
+/* Tabs */
+.auth-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 24px;
+  border: 1px solid rgba(114, 217, 255, 0.2);
+  background: rgba(10, 26, 39, 0.5);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  overflow: hidden;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--display-font);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.auth-tab.active {
+  background: rgba(255, 138, 42, 0.14);
+  color: var(--orange);
+  box-shadow: inset 0 -2px 0 var(--orange);
+}
+
+.auth-tab:hover:not(.active) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Form */
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form .field-row {
+  margin-top: 0;
+}
+
+.auth-error {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 90, 90, 0.35);
+  background: rgba(255, 90, 90, 0.08);
+  color: var(--danger);
+  font-family: var(--display-font);
+  font-size: 13px;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+
+.auth-submit {
+  width: 100%;
+  height: 46px;
+  margin-top: 4px;
+  border: 1px solid rgba(255, 138, 42, 0.55);
+  background: rgba(255, 138, 42, 0.12);
+  color: var(--orange);
+  font-family: var(--display-font);
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: rgba(255, 138, 42, 0.22);
+  border-color: var(--orange);
+  box-shadow: 0 0 18px rgba(255, 138, 42, 0.2);
+}
+
+.auth-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Settings: security card ───────────────────────────────── */
+
+.settings-grid {
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+}
+
+.security-card .field-row label {
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.security-card .change-password-btn {
+  width: 100%;
+  height: 44px;
+  margin-top: 6px;
+  border: 1px solid rgba(114, 217, 255, 0.35);
+  background: rgba(10, 26, 39, 0.82);
+  color: var(--text);
+  font-family: var(--display-font);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.security-card .change-password-btn:hover:not(:disabled) {
+  border-color: var(--cyan);
+  box-shadow: 0 0 14px rgba(114, 217, 255, 0.18);
+}
+
+.security-card .change-password-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.security-msg {
+  margin: 0;
+  font-family: var(--display-font);
+  font-size: 13px;
+}
+
+.security-msg.success {
+  color: var(--green);
+}
+
+.security-msg.error {
+  color: var(--danger);
 }
