@@ -1,3 +1,5 @@
+import randomUUID from '../utils/randomUUID.js';
+
 const TEMPLATE_KEY = 'battle-for-respect:templates:v2';
 
 const DEFAULT_TEMPLATES = {
@@ -85,7 +87,7 @@ export function getTemplates() {
 
 export function addTaskTemplate(text, points = 1) {
   const templates = load();
-  templates.tasks.push({ id: `tpl-task-${crypto.randomUUID().slice(0, 8)}`, text, points });
+  templates.tasks.push({ id: `tpl-task-${randomUUID().slice(0, 8)}`, text, points });
   save(templates);
   return templates;
 }
@@ -106,7 +108,7 @@ export function removeTaskTemplate(id) {
 
 export function addComplicationTemplate(text) {
   const templates = load();
-  templates.complications.push({ id: `tpl-comp-${crypto.randomUUID().slice(0, 8)}`, text });
+  templates.complications.push({ id: `tpl-comp-${randomUUID().slice(0, 8)}`, text });
   save(templates);
   return templates;
 }

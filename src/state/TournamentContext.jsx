@@ -3,6 +3,7 @@ import { STORAGE_KEY, createDefaultState } from './tournamentDefaults.js';
 import { createDefaultLayout } from './layoutDefaults.js';
 import useServerSync from '../hooks/useServerSync.js';
 import { useAuth } from './AuthContext.jsx';
+import randomUUID from '../utils/randomUUID.js';
 
 const TournamentContext = createContext(null);
 
@@ -80,7 +81,7 @@ function clampRound(value, max = 3) {
 function normalizeTask(task) {
   const points = Number(task?.points ?? 1);
   return {
-    id: task?.id || crypto.randomUUID(),
+    id: task?.id || randomUUID(),
     text: task?.text || '',
     points: Number.isNaN(points) ? 1 : points,
     completed: Boolean(task?.completed),
@@ -420,7 +421,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
         tasks: [
           ...current.tasks,
           {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             text: taskText,
             points: Number(points) || 1,
             completed: false,
@@ -460,7 +461,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     if (!safeName) return;
 
     setState((current) => {
-      const player = { id: crypto.randomUUID(), name: safeName, totalPoints: 0 };
+      const player = { id: randomUUID(), name: safeName, totalPoints: 0 };
       return touch({
         ...current,
         players: [...current.players, player],
@@ -475,11 +476,11 @@ export function TournamentProvider({ children, overlayUserId = null }) {
 
     setState((current) => {
       const team = {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         name: safeTeamName,
         players: [
-          { id: crypto.randomUUID(), name: firstPlayer.trim() || 'Player 1', totalPoints: 0 },
-          { id: crypto.randomUUID(), name: secondPlayer.trim() || 'Player 2', totalPoints: 0 },
+          { id: randomUUID(), name: firstPlayer.trim() || 'Player 1', totalPoints: 0 },
+          { id: randomUUID(), name: secondPlayer.trim() || 'Player 2', totalPoints: 0 },
         ],
         totalPoints: 0,
       };
@@ -592,7 +593,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
         ...current.extensions,
         bonusTasks: [
           ...(current.extensions?.bonusTasks || []),
-          { id: crypto.randomUUID(), text: text.trim() },
+          { id: randomUUID(), text: text.trim() },
         ],
       },
     }));
@@ -616,7 +617,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
         ...current.extensions,
         complications: [
           ...(current.extensions?.complications || []),
-          { id: crypto.randomUUID(), text: text.trim() },
+          { id: randomUUID(), text: text.trim() },
         ],
       },
     }));

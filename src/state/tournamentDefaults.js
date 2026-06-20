@@ -1,4 +1,5 @@
 import { createDefaultLayout } from './layoutDefaults.js';
+import randomUUID from '../utils/randomUUID.js';
 
 export const STORAGE_KEY = 'battle-for-respect:v1';
 
@@ -29,17 +30,17 @@ export function createTasks() {
 
 export function createDefaultState() {
   const players = [
-    { id: crypto.randomUUID(), name: 'Alex', totalPoints: 0 },
-    { id: crypto.randomUUID(), name: 'Sam', totalPoints: 0 },
+    { id: randomUUID(), name: 'Alex', totalPoints: 0 },
+    { id: randomUUID(), name: 'Sam', totalPoints: 0 },
   ];
 
   const teams = [
     {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       name: 'North Gate',
       players: [
-        { id: crypto.randomUUID(), name: 'Alex', totalPoints: 0 },
-        { id: crypto.randomUUID(), name: 'Sam', totalPoints: 0 },
+        { id: randomUUID(), name: 'Alex', totalPoints: 0 },
+        { id: randomUUID(), name: 'Sam', totalPoints: 0 },
       ],
       totalPoints: 0,
     },
