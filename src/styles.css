@@ -898,13 +898,19 @@ textarea:focus {
 
 .overlay-task-tile {
   display: grid;
-  grid-template-columns: 24px 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: start;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: rgba(255, 255, 255, 0.04);
-  transition: border-color 0.3s, background 0.3s;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
 }
 
 .overlay-task-tile.completed {
@@ -957,8 +963,14 @@ textarea:focus {
   align-items: flex-start;
   gap: 10px;
   padding: 6px 10px;
-  border: 1px solid rgba(255, 180, 60, 0.15);
-  background: rgba(255, 180, 60, 0.05);
+  border: 1px solid rgba(255, 180, 60, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 180, 60, 0.04);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .complication-num {

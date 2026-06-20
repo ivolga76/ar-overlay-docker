@@ -56,7 +56,6 @@ const Complications = memo(function Complications({ data }) {
       <div className="overlay-complications-list">
         {comps.map((comp, i) => (
           <div key={comp.id} className="overlay-complication-item">
-            <span className="complication-num">{i + 1}</span>
             <span className="complication-text">{comp.text}</span>
           </div>
         ))}
@@ -81,7 +80,6 @@ const Tasks = memo(function Tasks({ data }) {
             key={task.id}
             className={`overlay-task-tile ${task.completed ? 'completed' : ''}`}
           >
-            <div className="task-number">{i + 1}</div>
             <div className="task-name">{task.text}</div>
             <div className="task-cost">{task.points} очк.</div>
           </div>
