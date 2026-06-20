@@ -28,6 +28,7 @@ export default function LayoutEditor() {
 
   const [selectedId, setSelectedId] = useState(null);
   const [dragging, setDragging] = useState(null);
+  const dragPosRef = useRef({ x: 0, y: 0 }); // локальная позиция во время драга
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 960, h: 540 });
 
@@ -69,6 +70,7 @@ export default function LayoutEditor() {
     const my = e.clientY - containerRect.top - 16;
     const sx = widget.x * scaleFactor;
     const sy = widget.y * scaleFactor;
+    dragPosRef.current = { x: widget.x, y: widget.y };
     setDragging({
       id: widget.id,
       offsetX: mx - sx,
@@ -89,10 +91,17 @@ export default function LayoutEditor() {
         Math.max(0, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 100)),
         Math.max(0, Math.min(newSy, OVERLAY_HEIGHT * scaleFactor - 30)),
       );
-      updateLayout(dragging.id, { x, y });
+      // Пишем только в ref — не дёргаем глобальный стейт и WebSocket
+      dragPosRef.current = { x, y };
+      // Форсируем ререндер только для visual feedback
+      setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : null);
     };
 
-    const handleUp = () => setDragging(null);
+    const handleUp = () => {
+      // Коммитим финальную позицию в глобальный стейт ОДИН раз
+      updateLayout(dragging.id, dragPosRef.current);
+      setDragging(null);
+    };
 
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
@@ -119,7 +128,7 @@ export default function LayoutEditor() {
 
   // ★ Ключевой useMemo: виджеты не пересоздаются на тики таймера
   const widgets = useMemo(() =>
-    renderWidgets(layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility),
+    renderWidgets(layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility),
     [layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility]
   );
 
@@ -254,13 +263,14 @@ export default function LayoutEditor() {
   );
 }
 
-function renderWidgets(layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility) {
+function renderWidgets(layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility) {
   const taskList = tasks || [];
   const compList = complications || [];
   const standList = standings || [];
   return layout.map(widget => {
-    const sx = widget.x * scaleFactor;
-    const sy = widget.y * scaleFactor;
+    const isDragged = dragging?.id === widget.id;
+    const sx = isDragged ? dragPosRef.current.x * scaleFactor : widget.x * scaleFactor;
+    const sy = isDragged ? dragPosRef.current.y * scaleFactor : widget.y * scaleFactor;
     const isSelected = widget.id === selectedId;
     const s = widget.scale || 1;
     const { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
@@ -317,7 +327,7 @@ function renderWidgets(layout, tasks, complications, standings, scaleFactor, han
           </span>
         )}
         <span className="layout-widget-pos">
-          {widget.x},{widget.y}
+          {isDragged ? `${dragPosRef.current.x},${dragPosRef.current.y}` : `${widget.x},${widget.y}`}
         </span>
       </div>
     );
