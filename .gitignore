@@ -2,8 +2,10 @@ node_modules/
 dist/
 .vite/
 .data/
+backups/
 *.ps1
 *.bat
 *.bundle
 *.png
 *.jpg
+*.zip
