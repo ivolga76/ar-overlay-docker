@@ -38,11 +38,19 @@ function normalizeState(rawState) {
       const saved = Array.isArray(rawState.overlayLayout) && rawState.overlayLayout.length
         ? rawState.overlayLayout
         : createDefaultLayout();
-      // Merge in any new default widgets not present in saved layout
+      // Merge defaults: add missing widgets, sync visible for existing
       const defaults = createDefaultLayout();
+      const defaultMap = new Map(defaults.map(w => [w.id, w]));
       const savedIds = new Set(saved.map(w => w.id));
+      // Only sync visible from default if the widget has no explicit visible field
+      const merged = saved.map(w => {
+        const d = defaultMap.get(w.id);
+        if (!d) return w;
+        // Keep user's visible if explicitly set, else take default
+        return w.visible !== undefined ? w : { ...w, visible: d.visible };
+      });
       const missing = defaults.filter(w => !savedIds.has(w.id));
-      return [...saved, ...missing];
+      return [...merged, ...missing];
     })(),
     timerData: rawState.timerData || { remainingMs: 0, totalMs: 0, running: false, paused: false },
     version: Number(rawState.version ?? fallback.version ?? 0),
@@ -539,6 +547,20 @@ export function TournamentProvider({ children }) {
     setState((current) => touch({ ...current, overlayLayout: createDefaultLayout() }));
   }, []);
 
+  const setFullLayout = useCallback((newLayout) => {
+    if (!Array.isArray(newLayout) || !newLayout.length) return;
+    setState((current) => touch({ ...current, overlayLayout: newLayout.map(w => ({ ...w })) }));
+  }, []);
+
+  const toggleWidgetVisibility = useCallback((widgetId) => {
+    setState((current) => touch({
+      ...current,
+      overlayLayout: current.overlayLayout.map((w) =>
+        w.id === widgetId ? { ...w, visible: !(w.visible !== false) } : w
+      ),
+    }));
+  }, []);
+
 
   const resetTournament = useCallback(() => {
     setState(createDefaultState());
@@ -642,6 +664,8 @@ export function TournamentProvider({ children }) {
       setSoundEnabled,
       updateLayout,
       resetLayout,
+      setFullLayout,
+      toggleWidgetVisibility,
       resetTournament,
       addBonusTask,
       removeBonusTask,
@@ -669,11 +693,13 @@ export function TournamentProvider({ children }) {
     setTournamentName,
     setTotalRounds,
     setSoundEnabled,
-    updateLayout,
-    resetLayout,
-    resetTournament,
-    addBonusTask,
-    removeBonusTask,
+      updateLayout,
+      resetLayout,
+      setFullLayout,
+      toggleWidgetVisibility,
+      resetTournament,
+      addBonusTask,
+      removeBonusTask,
     addComplication,
     updateComplication,
     removeComplication,
