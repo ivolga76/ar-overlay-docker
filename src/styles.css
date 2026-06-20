@@ -54,7 +54,7 @@ body.admin-page {
 }
 
 body.overlay-page {
-  background: transparent;
+  background: #081018; /* dark fallback for regular browser; OBS transparent source overrides */
 }
 
 button,
