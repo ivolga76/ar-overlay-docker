@@ -14,7 +14,7 @@ const WIDGET_LABELS = {
 };
 
 export default function LayoutEditor() {
-  const { state, updateLayout, resetLayout, setFullLayout, toggleWidgetVisibility, standings } = useTournament();
+  const { state, updateLayout, resetLayout, setFullLayout, toggleWidgetVisibility, standings, currentParticipant, previousParticipant } = useTournament();
   // Читаем только нужные поля — timerData игнорируется
   const layout = state.overlayLayout;
   const tasks = state.tasks;
@@ -121,7 +121,6 @@ export default function LayoutEditor() {
     const newScale = Math.max(0.3, Math.min(3.0, (widget.scale || 1) + delta));
     const rounded = Math.round(newScale * 100) / 100;
     // Сразу показываем визуал через ref (будет подхвачено renderWidgets)
-    // Если уже идёт драг — сохраняем drag-позицию, иначе берём из стейта
     if (!dragging || dragging.offsetX === undefined) {
       dragPosRef.current = { x: widget.x, y: widget.y, scale: rounded };
     } else {
@@ -142,10 +141,34 @@ export default function LayoutEditor() {
     [layout, selectedId]
   );
 
+  // Данные для отображения контента внутри виджетов (как в оверлее)
+  const overlayData = useMemo(() => ({
+    tournamentName: state.tournamentName,
+    currentRound: state.currentRound,
+    totalRounds: state.totalRounds,
+    name: currentParticipant?.name,
+    points: currentParticipant?.totalPoints ?? 0,
+    tasks: state.tasks || [],
+    previousPlayer: previousParticipant,
+    showStandings: state.showStandings,
+    standings,
+    complications: state.extensions?.complications || [],
+  }), [
+    state.tournamentName,
+    state.currentRound,
+    state.totalRounds,
+    currentParticipant,
+    state.tasks,
+    previousParticipant,
+    state.showStandings,
+    standings,
+    state.extensions?.complications,
+  ]);
+
   // ★ Ключевой useMemo: виджеты не пересоздаются на тики таймера
   const widgets = useMemo(() =>
-    renderWidgets(layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility),
-    [layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility]
+    renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility),
+    [layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility]
   );
 
   // --- Profile handlers ---
@@ -279,18 +302,191 @@ export default function LayoutEditor() {
   );
 }
 
-function renderWidgets(layout, tasks, complications, standings, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility) {
-  const taskList = tasks || [];
-  const compList = complications || [];
-  const standList = standings || [];
+// ── Miniature overlay widget renderers (reuse overlay CSS classes) ────
+
+function TournamentNamePreview({ data, scale }) {
+  return (
+    <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+      <div className="overlay-title" style={{ fontSize: '11px' }}>{data.tournamentName || 'Битва за Респект'}</div>
+    </div>
+  );
+}
+
+function RoundPreview({ data, scale }) {
+  return (
+    <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+      <div className="overlay-round" style={{ fontSize: '10px', marginTop: 0 }}>
+        Раунд {data.currentRound} из {data.totalRounds}
+      </div>
+    </div>
+  );
+}
+
+function ScorePreview({ data, scale }) {
+  return (
+    <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+      <div className="overlay-score-row">
+        <span className="overlay-player" style={{ fontSize: '12px', marginTop: 0 }}>{data.name || '---'}</span>
+        <span className="overlay-score" style={{ fontSize: '12px', marginTop: 0 }}>{data.points ?? 0} очк.</span>
+      </div>
+    </div>
+  );
+}
+
+function TasksPreview({ data, scale }) {
+  const tasks = data.tasks || [];
+  const completed = tasks.filter(t => t.completed).length;
+  const cols = tasks.length <= 3 ? 1 : 2;
+  return (
+    <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: 600 }}>
+      <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '3px', padding: 0 }}>
+        Задачи раунда ({completed}/{tasks.length})
+      </div>
+      <div className={tasks.length <= 3 ? `overlay-tasks-grid tasks-row-${tasks.length}` : 'overlay-tasks-grid tasks-multi'}>
+        {tasks.map((task) => (
+          <div key={task.id} className={`overlay-task-tile ${task.completed ? 'completed' : ''}`}
+            style={{ fontSize: '8px', padding: '2px 5px', borderRadius: '3px', gap: '3px' }}>
+            <div className="task-name" style={{ fontSize: '8px' }}>{task.text}</div>
+            <div className="task-cost" style={{ fontSize: '7px' }}>{task.points} очк.</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TimerPreview({ scale }) {
+  const r = 24;
+  const stroke = 3;
+  const circ = 2 * Math.PI * r;
+  return (
+    <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+      <svg width={r * 2 + stroke * 2} height={r * 2 + stroke * 2} viewBox={`0 0 ${r * 2 + stroke * 2} ${r * 2 + stroke * 2}`}>
+        <circle cx={r + stroke} cy={r + stroke} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={stroke} />
+        <circle cx={r + stroke} cy={r + stroke} r={r} fill="none" stroke="var(--cyan)" strokeWidth={stroke}
+          strokeDasharray={`${circ * 0.75} ${circ * 0.25}`} strokeLinecap="round"
+          transform={`rotate(-90 ${r + stroke} ${r + stroke})`} />
+        <text x="50%" y="55%" textAnchor="middle" fill="var(--cyan)" fontSize="10" fontWeight="600" fontFamily="var(--display-font)">
+          1:30
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function PreviousPlayerPreview({ data, scale }) {
+  if (!data.previousPlayer) {
+    return (
+      <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+        <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>Предыдущий игрок</div>
+        <div style={{ fontSize: '9px', color: 'var(--muted)' }}>—</div>
+      </div>
+    );
+  }
+  return (
+    <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+      <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>Предыдущий игрок</div>
+      <div className="overlay-player" style={{ fontSize: '11px', marginTop: 0 }}>{data.previousPlayer.name}</div>
+      <div className="overlay-score" style={{ fontSize: '10px', opacity: 0.7, marginTop: 0 }}>{data.previousPlayer.totalPoints ?? 0} очк.</div>
+    </div>
+  );
+}
+
+function StandingsPreview({ data, scale }) {
+  const list = data.standings || [];
+  if (!list.length) {
+    return (
+      <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+        <div className="overlay-tasks-header vs-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>vs</div>
+        <div style={{ fontSize: '9px', color: 'var(--muted)' }}>Нет данных</div>
+      </div>
+    );
+  }
+  const pairs = [];
+  for (let i = 0; i < list.length; i += 2) {
+    pairs.push({ left: list[i], right: list[i + 1] || null });
+  }
+  return (
+    <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+      <div className="overlay-tasks-header vs-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>vs</div>
+      <div className="vs-scoreboard" style={{ gap: '2px' }}>
+        {pairs.map((pair) => (
+          <div key={pair.left.id} className="vs-row" style={{ padding: '2px 0', animation: 'none' }}>
+            <div className="vs-team vs-team-left" style={{ minWidth: '40px' }}>
+              <span className="vs-name" style={{ fontSize: '8px' }}>{pair.left.name}</span>
+            </div>
+            <div className="vs-score-block">
+              <span className="vs-score vs-score-left" style={{ fontSize: '9px' }}>{pair.left.totalPoints ?? 0}</span>
+              <span className="vs-colon" style={{ fontSize: '9px' }}>:</span>
+              <span className="vs-score vs-score-right" style={{ fontSize: '9px' }}>{pair.right ? pair.right.totalPoints ?? 0 : 0}</span>
+            </div>
+            <div className="vs-team vs-team-right" style={{ minWidth: '40px' }}>
+              {pair.right && <span className="vs-name" style={{ fontSize: '8px' }}>{pair.right.name}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ComplicationsPreview({ data, scale }) {
+  const comps = data.complications || [];
+  if (!comps.length) {
+    return (
+      <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+        <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>
+          Усложнения (0)
+        </div>
+        <div style={{ fontSize: '8px', color: 'var(--muted)' }}>Нет активных усложнений</div>
+      </div>
+    );
+  }
+  return (
+    <div className="overlay-widget-inner" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+      <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>
+        Усложнения ({comps.length})
+      </div>
+      <div className="overlay-complications-list" style={{ gap: '1px' }}>
+        {comps.map((comp) => (
+          <div key={comp.id} className="overlay-complication-item" style={{ padding: '1px 0', gap: '4px' }}>
+            <span className="complication-text" style={{ fontSize: '8px' }}>{comp.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const PREVIEW_COMPONENTS = {
+  'tournament-name': TournamentNamePreview,
+  'round': RoundPreview,
+  'score': ScorePreview,
+  'tasks': TasksPreview,
+  'timer': TimerPreview,
+  'previous-player': PreviousPlayerPreview,
+  'standings': StandingsPreview,
+  'complications': ComplicationsPreview,
+};
+
+function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility) {
+  const taskList = overlayData.tasks || [];
+  const compList = overlayData.complications || [];
+  const standList = overlayData.standings || [];
   return layout.map(widget => {
     const isDragged = dragging?.id === widget.id;
     const sx = isDragged ? dragPosRef.current.x * scaleFactor : widget.x * scaleFactor;
     const sy = isDragged ? dragPosRef.current.y * scaleFactor : widget.y * scaleFactor;
     const isSelected = widget.id === selectedId;
-    const s = isDragged && dragPosRef.current.scale != null ? dragPosRef.current.scale : (widget.scale || 1);
+    const wScale = isDragged && dragPosRef.current.scale != null ? dragPosRef.current.scale : (widget.scale || 1);
     const { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
     const isHidden = widget.visible === false;
+    const isFluid = widget.type === 'tasks' || widget.type === 'score' || widget.type === 'complications' || widget.type === 'standings';
+
+    // Масштаб контента относительно масштаба канваса
+    const contentScale = wScale * 0.85;
+
+    const Preview = PREVIEW_COMPONENTS[widget.type];
 
     return (
       <div
@@ -299,8 +495,10 @@ function renderWidgets(layout, tasks, complications, standings, scaleFactor, han
         style={{
           left: sx,
           top: sy,
-          width: w * s,
-          height: h * s,
+          width: w * wScale * scaleFactor,
+          height: h * wScale * scaleFactor,
+          overflow: isFluid ? 'visible' : 'hidden',
+          transformOrigin: 'top left',
         }}
         onMouseDown={(e) => handleMouseDown(e, widget)}
       >
@@ -312,34 +510,17 @@ function renderWidgets(layout, tasks, complications, standings, scaleFactor, han
         >
           <span className="vis-eye">👁</span>
         </button>
-        {widget.type === 'tasks' ? (
-          <div className="layout-tasks-preview" style={{ transform: `scale(${s})`, transformOrigin: 'top left', width: w, padding: '4px 8px' }}>
-            <div style={{ color: 'var(--cyan)', fontSize: '10px', marginBottom: '4px' }}>
-              Задачи ({taskList.filter(t => t.completed).length}/{taskList.length})
-            </div>
-            {taskList.map((task, i) => (
-              <div key={task.id} style={{ display: 'grid', gridTemplateColumns: '18px 1fr auto', gap: '4px', fontSize: '9px', color: '#ccc', marginBottom: '2px', lineHeight: 1.3, minHeight: '2.6em' }}>
-                <span style={{ color: 'var(--cyan)', textAlign: 'center' }}>{i + 1}</span>
-                <span style={{ wordBreak: 'break-word' }}>{task.text}</span>
-                <span style={{ color: 'var(--orange)' }}>{task.points} очк.</span>
-              </div>
-            ))}
-          </div>
-        ) : widget.type === 'complications' ? (
-          <div className="layout-tasks-preview" style={{ transform: `scale(${s})`, transformOrigin: 'top left', width: w, padding: '4px 8px' }}>
-            <div style={{ color: 'var(--orange)', fontSize: '10px', marginBottom: '4px' }}>
-              Усложнения ({compList.length})
-            </div>
-            {compList.map((comp, i) => (
-              <div key={comp.id} style={{ display: 'grid', gridTemplateColumns: '18px 1fr', gap: '4px', fontSize: '9px', color: '#ccc', marginBottom: '2px', lineHeight: 1.3, minHeight: '2em' }}>
-                <span style={{ color: 'var(--orange)', textAlign: 'center' }}>{i + 1}</span>
-                <span style={{ wordBreak: 'break-word' }}>{comp.text}</span>
-              </div>
-            ))}
-            {compList.length === 0 && <div style={{ fontSize: '9px', color: 'var(--muted)' }}>Нет активных усложнений</div>}
+        {Preview ? (
+          <div style={{
+            transform: `scale(${contentScale * scaleFactor})`,
+            transformOrigin: 'top left',
+            width: isFluid ? w : w * wScale,
+            height: isFluid ? 'auto' : h * wScale,
+          }}>
+            <Preview data={overlayData} scale={1 / scaleFactor} />
           </div>
         ) : (
-          <span className="layout-widget-label" style={{ transform: `scale(${s})`, transformOrigin: 'top left' }}>
+          <span className="layout-widget-label" style={{ transform: `scale(${wScale * scaleFactor})`, transformOrigin: 'top left' }}>
             {WIDGET_LABELS[widget.type]}
           </span>
         )}
