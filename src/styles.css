@@ -449,8 +449,7 @@ button {
 }
 
 .vs-team {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .vs-team-left {
@@ -468,9 +467,6 @@ button {
   font-size: 16px;
   color: #f5fbff;
   text-shadow: 0 0 10px rgba(114, 217, 255, 0.25);
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

@@ -549,7 +549,8 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
     const wScale = (isDragged && dragPosRef.current.scale != null) ? dragPosRef.current.scale : (widget.scale || 1);
     let { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
     const isHidden = widget.visible === false;
-    const isFluid = widget.type === 'score' || widget.type === 'standings';
+    const isFluid = widget.type === 'score';
+    const isStandings = widget.type === 'standings';
     const isFixedPad = widget.type === 'tasks' || widget.type === 'complications';
 
     // Custom width override (set by resize)
@@ -560,7 +561,7 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
     // Для Версуса: ширина по контенту (как у Счёта), а не фиксированная (только если нет customWidth)
     if (widget.type === 'standings' && widget.customWidth == null) {
       const maxNameLen = Math.max(...standList.map(p => (p.name || '').length), 0);
-      w = Math.max(180, Math.min(420, maxNameLen * 12 + 120));
+      w = Math.max(180, maxNameLen * 12 + 120);
     }
 
     // Effective scale: widget scale × canvas zoom — matches overlay 1:1
@@ -593,11 +594,13 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           top: sy,
           ...(isFixedSize
             ? { width: displayW * effScale, height: h * effScale }
-            : isFluid
-              ? { minWidth: displayW * effScale, minHeight: h * effScale }
-              : isFixedPad
-                ? { width: displayW * effScale * 1.3, minHeight: h * effScale }
-                : { width: displayW * effScale, minHeight: h * effScale }
+            : isStandings
+              ? { width: 'auto', minWidth: displayW * effScale, minHeight: h * effScale }
+              : isFluid
+                ? { minWidth: displayW * effScale, minHeight: h * effScale }
+                : isFixedPad
+                  ? { width: displayW * effScale * 1.3, minHeight: h * effScale }
+                  : { width: displayW * effScale, minHeight: h * effScale }
           ),
           height: isFixedSize ? undefined : 'auto',
           display: 'flex',
@@ -605,9 +608,11 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           justifyContent: 'center',
           overflow: isFixedSize ? 'hidden' : 'visible',
           boxSizing: 'border-box',
-          padding: isFixedPad
-            ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.15 * displayW * effScale)}px`
-            : `${Math.max(1, Math.round(3 * effScale))}px`,
+          padding: isStandings
+            ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.10 * displayW * effScale)}px`
+            : isFixedPad
+              ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.15 * displayW * effScale)}px`
+              : `${Math.max(1, Math.round(3 * effScale))}px`,
           cursor: isDragged ? 'grabbing' : (isSelected ? 'grab' : undefined),
         }}
         onMouseDown={(e) => handleMouseDown(e, widget)}

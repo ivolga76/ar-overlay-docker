@@ -236,6 +236,7 @@ export default function Overlay({ userId }) {
                   height: isFixedSize ? h * s : 'auto',
                   minHeight: isFixedSize ? undefined : h * s,
                   overflow: 'visible',
+                  padding: widget.type === 'standings' ? `0 ${Math.round(w * s * 0.10)}px` : undefined,
                 }}
               >
                 <div
