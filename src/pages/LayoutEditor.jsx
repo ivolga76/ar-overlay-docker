@@ -74,15 +74,21 @@ export default function LayoutEditor() {
       const my = e.clientY - containerRect.top - 16;
       const newSx = mx - dragging.offsetX;
       const newSy = my - dragging.offsetY;
+      // Soft edges during drag — allow slight overshoot for sticky feel
       const { x, y } = toLayout(
-        Math.max(0, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 100)),
-        Math.max(0, Math.min(newSy, OVERLAY_HEIGHT * scaleFactor - 30)),
+        Math.max(-40, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 60)),
+        Math.max(-20, Math.min(newSy, OVERLAY_HEIGHT * scaleFactor - 10)),
       );
       dragPosRef.current = { x, y };
       setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : null);
     };
     const handleUp = () => {
-      updateLayout(dragging.id, dragPosRef.current);
+      // Clamp final position within valid range
+      const clamped = {
+        x: Math.max(0, dragPosRef.current.x),
+        y: Math.max(0, dragPosRef.current.y),
+      };
+      updateLayout(dragging.id, clamped);
       setDragging(null);
     };
     window.addEventListener('mousemove', handleMove);
