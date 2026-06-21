@@ -343,7 +343,7 @@ export default function LayoutEditor() {
 
 // Base font sizes from overlay CSS (styles.css)
 const OV = {
-  title: 38,
+  title: 24,
   round: 18,
   player: 32,
   score: 38,
