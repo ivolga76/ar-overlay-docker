@@ -243,10 +243,39 @@ export default function LayoutEditor() {
 
 // ── Preview components — render at scaled size directly (no CSS transform) ────
 
+// Base font sizes from overlay CSS (styles.css)
+const OV = {
+  title: 38,
+  round: 18,
+  player: 32,
+  score: 38,
+  tasksHeader: 16,
+  taskName: 14,
+  taskCost: 12,
+  taskPadding: 8,
+  taskGap: 8,
+  taskRadius: 8,
+  compHeader: 16,
+  compText: 13,
+  compGap: 8,
+  compListGap: 4,
+  vsHeader: 16,
+  vsName: 16,
+  vsScore: 14,
+  vsTeamMinW: 80,
+  vsRowPad: 6,
+  prevHeader: 16,
+  prevName: 18,
+  prevScore: 16,
+  timerRing: 48,
+  timerStroke: 4,
+  timerText: 14,
+};
+
 function TournamentNamePreview({ data, fs }) {
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-title" style={{ fontSize: fs(11) }}>{data.tournamentName || 'Битва за Респект'}</div>
+      <div className="overlay-title" style={{ fontSize: fs(OV.title) }}>{data.tournamentName || 'Битва за Респект'}</div>
     </div>
   );
 }
@@ -254,7 +283,7 @@ function TournamentNamePreview({ data, fs }) {
 function RoundPreview({ data, fs }) {
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-round" style={{ fontSize: fs(10), marginTop: 0 }}>
+      <div className="overlay-round" style={{ fontSize: fs(OV.round), marginTop: 0 }}>
         Раунд {data.currentRound} из {data.totalRounds}
       </div>
     </div>
@@ -265,8 +294,8 @@ function ScorePreview({ data, fs }) {
   return (
     <div className="overlay-widget-inner">
       <div className="overlay-score-row">
-        <span className="overlay-player" style={{ fontSize: fs(12), marginTop: 0 }}>{data.name || '---'}</span>
-        <span className="overlay-score" style={{ fontSize: fs(12), marginTop: 0 }}>{data.points ?? 0} очк.</span>
+        <span className="overlay-player" style={{ fontSize: fs(OV.player), marginTop: 0 }}>{data.name || '---'}</span>
+        <span className="overlay-score" style={{ fontSize: fs(OV.score), marginTop: 0 }}>{data.points ?? 0} очк.</span>
       </div>
     </div>
   );
@@ -277,16 +306,16 @@ function TasksPreview({ data, fs }) {
   const completed = tasks.filter(t => t.completed).length;
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(3), padding: 0 }}>
+      <div className="overlay-tasks-header" style={{ fontSize: fs(OV.tasksHeader), marginBottom: fs(4), padding: 0 }}>
         Задачи раунда ({completed}/{tasks.length})
       </div>
       <div className={tasks.length <= 3 ? `overlay-tasks-grid tasks-row-${tasks.length}` : 'overlay-tasks-grid tasks-multi'}
-        style={{ gap: fs(4) }}>
+        style={{ gap: fs(OV.taskGap) }}>
         {tasks.map((task) => (
           <div key={task.id} className={`overlay-task-tile ${task.completed ? 'completed' : ''}`}
-            style={{ fontSize: fs(8), padding: `${fs(2)} ${fs(5)}`, borderRadius: fs(3), gap: fs(3) }}>
-            <div className="task-name" style={{ fontSize: fs(8) }}>{task.text}</div>
-            <div className="task-cost" style={{ fontSize: fs(7) }}>{task.points} очк.</div>
+            style={{ fontSize: fs(OV.taskName), padding: `${fs(OV.taskPadding / 2)} ${fs(OV.taskPadding)}`, borderRadius: fs(OV.taskRadius), gap: fs(OV.taskGap) }}>
+            <div className="task-name" style={{ fontSize: fs(OV.taskName) }}>{task.text}</div>
+            <div className="task-cost" style={{ fontSize: fs(OV.taskCost) }}>{task.points} очк.</div>
           </div>
         ))}
       </div>
@@ -295,8 +324,8 @@ function TasksPreview({ data, fs }) {
 }
 
 function TimerPreview({ fs, ns }) {
-  const r = ns(24);
-  const sw = ns(3);
+  const r = ns(OV.timerRing / 2);
+  const sw = ns(OV.timerStroke);
   const dim = r * 2 + sw * 2;
   const circ = 2 * Math.PI * r;
   return (
@@ -306,7 +335,7 @@ function TimerPreview({ fs, ns }) {
         <circle cx={r + sw} cy={r + sw} r={r} fill="none" stroke="var(--cyan)" strokeWidth={sw}
           strokeDasharray={`${circ * 0.75} ${circ * 0.25}`} strokeLinecap="round"
           transform={`rotate(-90 ${r + sw} ${r + sw})`} />
-        <text x="50%" y="55%" textAnchor="middle" fill="var(--cyan)" fontSize={ns(10)} fontWeight="600" fontFamily="var(--display-font)">
+        <text x="50%" y="55%" textAnchor="middle" fill="var(--cyan)" fontSize={ns(OV.timerText)} fontWeight="600" fontFamily="var(--display-font)">
           1:30
         </text>
       </svg>
@@ -318,16 +347,16 @@ function PreviousPlayerPreview({ data, fs }) {
   if (!data.previousPlayer) {
     return (
       <div className="overlay-widget-inner">
-        <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>Предыдущий игрок</div>
-        <div style={{ fontSize: fs(9), color: 'var(--muted)' }}>—</div>
+        <div className="overlay-tasks-header" style={{ fontSize: fs(OV.prevHeader), marginBottom: fs(2), padding: 0 }}>Предыдущий игрок</div>
+        <div style={{ fontSize: fs(OV.prevName), color: 'var(--muted)' }}>—</div>
       </div>
     );
   }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>Предыдущий игрок</div>
-      <div className="overlay-player" style={{ fontSize: fs(11), marginTop: 0 }}>{data.previousPlayer.name}</div>
-      <div className="overlay-score" style={{ fontSize: fs(10), opacity: 0.7, marginTop: 0 }}>{data.previousPlayer.totalPoints ?? 0} очк.</div>
+      <div className="overlay-tasks-header" style={{ fontSize: fs(OV.prevHeader), marginBottom: fs(2), padding: 0 }}>Предыдущий игрок</div>
+      <div className="overlay-player" style={{ fontSize: fs(OV.prevName), marginTop: 0 }}>{data.previousPlayer.name}</div>
+      <div className="overlay-score" style={{ fontSize: fs(OV.prevScore), opacity: 0.7, marginTop: 0 }}>{data.previousPlayer.totalPoints ?? 0} очк.</div>
     </div>
   );
 }
@@ -337,8 +366,8 @@ function StandingsPreview({ data, fs }) {
   if (!list.length) {
     return (
       <div className="overlay-widget-inner">
-        <div className="overlay-tasks-header vs-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>vs</div>
-        <div style={{ fontSize: fs(9), color: 'var(--muted)' }}>Нет данных</div>
+        <div className="overlay-tasks-header vs-header" style={{ fontSize: fs(OV.vsHeader), marginBottom: fs(2), padding: 0 }}>vs</div>
+        <div style={{ fontSize: fs(OV.vsName), color: 'var(--muted)' }}>Нет данных</div>
       </div>
     );
   }
@@ -348,20 +377,20 @@ function StandingsPreview({ data, fs }) {
   }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header vs-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>vs</div>
+      <div className="overlay-tasks-header vs-header" style={{ fontSize: fs(OV.vsHeader), marginBottom: fs(2), padding: 0 }}>vs</div>
       <div className="vs-scoreboard" style={{ gap: fs(2) }}>
         {pairs.map((pair) => (
-          <div key={pair.left.id} className="vs-row" style={{ padding: `${fs(2)} 0`, animation: 'none' }}>
-            <div className="vs-team vs-team-left" style={{ minWidth: fs(40) }}>
-              <span className="vs-name" style={{ fontSize: fs(8) }}>{pair.left.name}</span>
+          <div key={pair.left.id} className="vs-row" style={{ padding: `${fs(OV.vsRowPad / 2)} 0`, animation: 'none' }}>
+            <div className="vs-team vs-team-left" style={{ minWidth: fs(OV.vsTeamMinW) }}>
+              <span className="vs-name" style={{ fontSize: fs(OV.vsName) }}>{pair.left.name}</span>
             </div>
             <div className="vs-score-block">
-              <span className="vs-score vs-score-left" style={{ fontSize: fs(9) }}>{pair.left.totalPoints ?? 0}</span>
-              <span className="vs-colon" style={{ fontSize: fs(9) }}>:</span>
-              <span className="vs-score vs-score-right" style={{ fontSize: fs(9) }}>{pair.right ? pair.right.totalPoints ?? 0 : 0}</span>
+              <span className="vs-score vs-score-left" style={{ fontSize: fs(OV.vsScore) }}>{pair.left.totalPoints ?? 0}</span>
+              <span className="vs-colon" style={{ fontSize: fs(OV.vsScore) }}>:</span>
+              <span className="vs-score vs-score-right" style={{ fontSize: fs(OV.vsScore) }}>{pair.right ? pair.right.totalPoints ?? 0 : 0}</span>
             </div>
-            <div className="vs-team vs-team-right" style={{ minWidth: fs(40) }}>
-              {pair.right && <span className="vs-name" style={{ fontSize: fs(8) }}>{pair.right.name}</span>}
+            <div className="vs-team vs-team-right" style={{ minWidth: fs(OV.vsTeamMinW) }}>
+              {pair.right && <span className="vs-name" style={{ fontSize: fs(OV.vsName) }}>{pair.right.name}</span>}
             </div>
           </div>
         ))}
@@ -375,20 +404,20 @@ function ComplicationsPreview({ data, fs }) {
   if (!comps.length) {
     return (
       <div className="overlay-widget-inner">
-        <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>Усложнения (0)</div>
-        <div style={{ fontSize: fs(8), color: 'var(--muted)' }}>Нет активных усложнений</div>
+        <div className="overlay-tasks-header" style={{ fontSize: fs(OV.compHeader), marginBottom: fs(2), padding: 0 }}>Усложнения (0)</div>
+        <div style={{ fontSize: fs(OV.compText), color: 'var(--muted)' }}>Нет активных усложнений</div>
       </div>
     );
   }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>
+      <div className="overlay-tasks-header" style={{ fontSize: fs(OV.compHeader), marginBottom: fs(2), padding: 0 }}>
         Усложнения ({comps.length})
       </div>
-      <div className="overlay-complications-list" style={{ gap: fs(1) }}>
+      <div className="overlay-complications-list" style={{ gap: fs(OV.compListGap) }}>
         {comps.map((comp) => (
-          <div key={comp.id} className="overlay-complication-item" style={{ padding: `${fs(1)} 0`, gap: fs(4) }}>
-            <span className="complication-text" style={{ fontSize: fs(8) }}>{comp.text}</span>
+          <div key={comp.id} className="overlay-complication-item" style={{ padding: '1px 0', gap: fs(OV.compGap) }}>
+            <span className="complication-text" style={{ fontSize: fs(OV.compText) }}>{comp.text}</span>
           </div>
         ))}
       </div>
@@ -424,11 +453,11 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
     // Effective scale: widget scale × canvas zoom — matches overlay 1:1
     const effScale = wScale * scaleFactor;
 
-    // Font-size helper: base px → scaled px (87% = padding inside border)
-    const fs = (basePx) => Math.max(5, Math.round(basePx * effScale * 0.87)) + 'px';
+    // Font-size helper: base px → scaled px (1:1 with overlay)
+    const fs = (basePx) => Math.max(4, Math.round(basePx * effScale)) + 'px';
 
     // Numeric scale helper for SVG attributes (no 'px' suffix)
-    const ns = (baseN) => Math.max(2, Math.round(baseN * effScale * 0.87));
+    const ns = (baseN) => Math.max(2, Math.round(baseN * effScale));
 
     const Preview = PREVIEW_COMPONENTS[widget.type];
 
