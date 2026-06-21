@@ -419,18 +419,16 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
     const wScale = isDragged && dragPosRef.current.scale != null ? dragPosRef.current.scale : (widget.scale || 1);
     const { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
     const isHidden = widget.visible === false;
+    const isFluid = widget.type === 'tasks' || widget.type === 'score' || widget.type === 'complications' || widget.type === 'standings';
 
-    // Effective scale factor for content: widget scale × canvas zoom
+    // Effective scale: widget scale × canvas zoom — matches overlay 1:1
     const effScale = wScale * scaleFactor;
 
-    // Font-size helper: base px → scaled px
+    // Font-size helper: base px → scaled px (87% = padding inside border)
     const fs = (basePx) => Math.max(5, Math.round(basePx * effScale * 0.87)) + 'px';
 
     // Numeric scale helper for SVG attributes (no 'px' suffix)
     const ns = (baseN) => Math.max(2, Math.round(baseN * effScale * 0.87));
-
-    // Spacing helper for padding/margin/gap
-    const sp = (basePx) => Math.max(1, Math.round(basePx * effScale * 0.87)) + 'px';
 
     const Preview = PREVIEW_COMPONENTS[widget.type];
 
@@ -441,7 +439,14 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
         style={{
           left: sx,
           top: sy,
-          padding: `${sp(6)} ${sp(9)}`,
+          width: w * effScale,
+          height: h * effScale,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: isFluid ? 'visible' : 'hidden',
+          boxSizing: 'border-box',
+          padding: `${Math.max(1, Math.round(3 * effScale))}px`,
         }}
         onMouseDown={(e) => handleMouseDown(e, widget)}
       >
@@ -460,7 +465,7 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
             {WIDGET_LABELS[widget.type]}
           </span>
         )}
-        <span className="layout-widget-pos" style={{ fontSize: sp(9) }}>
+        <span className="layout-widget-pos" style={{ fontSize: fs(9) }}>
           {isDragged ? `${dragPosRef.current.x},${dragPosRef.current.y}` : `${widget.x},${widget.y}`}
         </span>
       </div>
