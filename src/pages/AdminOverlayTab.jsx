@@ -154,7 +154,22 @@ export default function AdminOverlayTab({
     <section className="admin-grid">
       <div className="admin-stack">
         <section className="admin-card tech-panel">
-          <p className="eyebrow">Матч</p>
+          <div className="card-heading">
+            <div>
+              <p className="eyebrow">Матч</p>
+            </div>
+            <div className="button-pair">
+              {(() => {
+                const standingsWidget = state.overlayLayout?.find(w => w.id === 'standings');
+                const visible = standingsWidget ? standingsWidget.visible !== false : false;
+                return (
+                  <button type="button" className="roulette-btn" onClick={() => toggleWidgetVisibility('standings')}>
+                    {visible ? 'Скрыть versus' : 'Показать versus'}
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
         <div className="field-row">
           <label>Режим турнира</label>
           <div className="segmented">
@@ -208,19 +223,6 @@ export default function AdminOverlayTab({
             onChange={(event) => updateCurrentName(event.target.value)}
             placeholder="Имя игрока или команды"
           />
-        </div>
-
-        <div className="field-row">
-          <label>Versus</label>
-          {(() => {
-            const standingsWidget = state.overlayLayout?.find(w => w.id === 'standings');
-            const visible = standingsWidget ? standingsWidget.visible !== false : false;
-            return (
-              <button type="button" className="admin-btn admin-btn-sm" onClick={() => toggleWidgetVisibility('standings')}>
-                {visible ? 'Скрыть versus' : 'Показать versus'}
-              </button>
-            );
-          })()}
         </div>
 
         <div className="score-controls">
