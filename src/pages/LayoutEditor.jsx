@@ -474,10 +474,10 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           ),
           display: 'flex',
           alignItems: 'center',
-          justifyContent: isFluid ? 'flex-start' : 'center',
+          justifyContent: 'center',
           overflow: isFluid ? 'visible' : 'hidden',
           boxSizing: 'border-box',
-          padding: `${Math.max(1, Math.round(3 * effScale))}px`,
+          padding: `${Math.max(1, Math.round(3 * effScale))}px ${Math.max(2, Math.round(w * effScale * 0.08))}px`,
         }}
         onMouseDown={(e) => handleMouseDown(e, widget)}
       >
