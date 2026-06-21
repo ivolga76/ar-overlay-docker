@@ -27,6 +27,8 @@ export default function LayoutEditor() {
   const [selectedId, setSelectedId] = useState(null);
   const [dragging, setDragging] = useState(null);
   const dragPosRef = useRef({ x: 0, y: 0 });
+  const [resizing, setResizing] = useState(null);
+  const resizeRef = useRef({ id: null, edge: null, startX: 0, startWidth: 0, startWidgetX: 0, w: 0, widgetX: 0 });
   const wheelTimerRef = useRef(null);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 960, h: 540 });
@@ -94,15 +96,85 @@ export default function LayoutEditor() {
     };
   }, [dragging, scaleFactor, toLayout, updateLayout]);
 
+  // ── Resize handlers ──────────────────────────────────────────────
+
+  const handleResizeMouseDown = useCallback((e, widget, edge) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedId(widget.id);
+    const baseW = widget.customWidth ?? getWidgetSize(widget.type, tasks, complications, standings).w;
+    resizeRef.current = {
+      id: widget.id,
+      edge,
+      startX: e.clientX,
+      startWidth: baseW,
+      startWidgetX: widget.x,
+      w: baseW,
+      widgetX: widget.x,
+      onReset: (id) => updateLayout(id, { customWidth: null }),
+    };
+    setResizing({ id: widget.id, edge, _tick: Date.now() });
+  }, [tasks, complications, standings, updateLayout]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMove = (e) => {
+      const deltaX = e.clientX - resizeRef.current.startX;
+      let newWidth, newX;
+      if (resizeRef.current.edge === 'left') {
+        newWidth = resizeRef.current.startWidth - deltaX;
+        newX = resizeRef.current.startWidgetX + deltaX;
+        // Clamp: min width, left edge >= 0
+        newWidth = Math.max(MIN_WIDGET_WIDTH, newWidth);
+        const maxX = resizeRef.current.startWidgetX + resizeRef.current.startWidth - MIN_WIDGET_WIDTH;
+        newX = Math.max(0, Math.min(newX, maxX));
+        // Recalc width from clamped X
+        newWidth = resizeRef.current.startWidgetX + resizeRef.current.startWidth - newX;
+      } else {
+        newWidth = resizeRef.current.startWidth + deltaX;
+        newX = resizeRef.current.startWidgetX;
+        // Clamp: min width, right edge <= OVERLAY_WIDTH
+        newWidth = Math.max(MIN_WIDGET_WIDTH, Math.min(newWidth, OVERLAY_WIDTH - newX));
+      }
+      resizeRef.current.w = Math.round(newWidth);
+      resizeRef.current.widgetX = Math.round(newX);
+      setResizing((prev) => prev ? { ...prev, _tick: Date.now() } : null);
+    };
+    const handleUp = () => {
+      const finalW = resizeRef.current.w;
+      const finalX = resizeRef.current.widgetX;
+      const widget = layout.find(w => w.id === resizing.id);
+      const defW = widget ? getWidgetSize(widget.type, tasks, complications, standings).w : 80;
+      const patch = {};
+      if (Math.abs(finalW - defW) > 2) {
+        patch.customWidth = finalW;
+      } else {
+        patch.customWidth = null; // snap back to default
+      }
+      if (resizeRef.current.edge === 'left' && finalX !== resizeRef.current.startWidgetX) {
+        patch.x = finalX;
+      }
+      updateLayout(resizing.id, patch);
+      setResizing(null);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [resizing, tasks, complications, standings, updateLayout, layout]);
+
   // Ref-based wheel state — avoids listener re-attach on every drag tick
-  const wheelStateRef = useRef({ selectedId: null, layout: null, updateLayout: null, dragging: null });
+  const wheelStateRef = useRef({ selectedId: null, layout: null, updateLayout: null, dragging: null, resizing: null });
   wheelStateRef.current.selectedId = selectedId;
   wheelStateRef.current.layout = layout;
   wheelStateRef.current.updateLayout = updateLayout;
   wheelStateRef.current.dragging = dragging;
+  wheelStateRef.current.resizing = resizing;
 
   const handleWheel = useCallback((e) => {
-    const { selectedId: sid, layout: lay, updateLayout: upd, dragging: drg } = wheelStateRef.current;
+    const { selectedId: sid, layout: lay, updateLayout: upd, dragging: drg, resizing: rsg } = wheelStateRef.current;
     if (!sid) return;
     e.preventDefault();
     const widget = lay.find(w => w.id === sid);
@@ -110,6 +182,17 @@ export default function LayoutEditor() {
     const delta = e.deltaY > 0 ? -0.05 : 0.05;
     const newScale = Math.max(0.3, Math.min(3.0, (widget.scale || 1) + delta));
     const rounded = Math.round(newScale * 100) / 100;
+    if (rsg) {
+      // During resize, just update scale without touching position
+      resizeRef.current._scale = rounded;
+      setResizing((prev) => prev ? { ...prev, _tick: Date.now() } : null);
+      if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
+      wheelTimerRef.current = setTimeout(() => {
+        upd(sid, { scale: rounded });
+        wheelTimerRef.current = null;
+      }, 200);
+      return;
+    }
     if (!drg || drg.offsetX === undefined) {
       dragPosRef.current = { x: widget.x, y: widget.y, scale: rounded };
     } else {
@@ -153,8 +236,8 @@ export default function LayoutEditor() {
   ]);
 
   const widgets = useMemo(() =>
-    renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility),
-    [layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility]
+    renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility, resizing, resizeRef, handleResizeMouseDown),
+    [layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility, resizing, handleResizeMouseDown]
   );
 
   const refreshProfiles = useCallback(() => { setProfileNames(getProfileNames()); }, []);
@@ -451,29 +534,41 @@ const PREVIEW_COMPONENTS = {
   'complications': ComplicationsPreview,
 };
 
-function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility) {
+const MIN_WIDGET_WIDTH = 60; // px in overlay coords (@1920)
+
+function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility, resizing, resizeRef, handleResizeMouseDown) {
   const taskList = overlayData.tasks || [];
   const compList = overlayData.complications || [];
   const standList = overlayData.standings || [];
   return layout.map(widget => {
     const isDragged = dragging?.id === widget.id;
-    const sx = isDragged ? dragPosRef.current.x * scaleFactor : widget.x * scaleFactor;
-    const sy = isDragged ? dragPosRef.current.y * scaleFactor : widget.y * scaleFactor;
+    const isResizing = resizing?.id === widget.id;
+    const sx = (isDragged ? dragPosRef.current.x : widget.x) * scaleFactor;
+    const sy = (isDragged ? dragPosRef.current.y : widget.y) * scaleFactor;
     const isSelected = widget.id === selectedId;
-    const wScale = isDragged && dragPosRef.current.scale != null ? dragPosRef.current.scale : (widget.scale || 1);
+    const wScale = (isDragged && dragPosRef.current.scale != null) ? dragPosRef.current.scale : (widget.scale || 1);
     let { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
     const isHidden = widget.visible === false;
     const isFluid = widget.type === 'score' || widget.type === 'standings';
     const isFixedPad = widget.type === 'tasks' || widget.type === 'complications';
 
-    // Для Версуса: ширина по контенту (как у Счёта), а не фиксированная
-    if (widget.type === 'standings') {
+    // Custom width override (set by resize)
+    if (widget.customWidth != null) {
+      w = widget.customWidth;
+    }
+
+    // Для Версуса: ширина по контенту (как у Счёта), а не фиксированная (только если нет customWidth)
+    if (widget.type === 'standings' && widget.customWidth == null) {
       const maxNameLen = Math.max(...standList.map(p => (p.name || '').length), 0);
       w = Math.max(180, Math.min(420, maxNameLen * 12 + 120));
     }
 
     // Effective scale: widget scale × canvas zoom — matches overlay 1:1
     const effScale = wScale * scaleFactor;
+
+    // During resize, show live width from resizeRef
+    const displayW = isResizing ? resizeRef.current.w : w;
+    const displayX = isResizing ? resizeRef.current.widgetX : widget.x;
 
     // Font-size helper: base px → scaled px (1:1 with overlay)
     const fs = (basePx) => Math.max(4, Math.round(basePx * effScale)) + 'px';
@@ -483,18 +578,21 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
 
     const Preview = PREVIEW_COMPONENTS[widget.type];
 
+    // Resize handle thickness in scaled px
+    const handleW = Math.max(4, Math.round(6 * scaleFactor));
+
     return (
       <div
         key={widget.id}
-        className={`layout-widget ${isSelected ? 'selected' : ''} ${dragging?.id === widget.id ? 'dragging' : ''} ${isHidden ? 'widget-hidden' : ''}`}
+        className={`layout-widget ${isSelected ? 'selected' : ''} ${isDragged ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} ${isHidden ? 'widget-hidden' : ''}`}
         style={{
-          left: sx,
+          left: isResizing ? displayX * scaleFactor : sx,
           top: sy,
           ...(isFluid
-            ? { minWidth: w * effScale, minHeight: h * effScale }
+            ? { minWidth: displayW * effScale, minHeight: h * effScale }
             : isFixedPad
-              ? { width: w * effScale * 1.3, height: h * effScale }
-              : { width: w * effScale, height: h * effScale }
+              ? { width: displayW * effScale * 1.3, height: h * effScale }
+              : { width: displayW * effScale, height: h * effScale }
           ),
           display: 'flex',
           alignItems: 'center',
@@ -502,11 +600,42 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           overflow: isFluid ? 'visible' : 'hidden',
           boxSizing: 'border-box',
           padding: isFixedPad
-            ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.15 * w * effScale)}px`
+            ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.15 * displayW * effScale)}px`
             : `${Math.max(1, Math.round(3 * effScale))}px`,
+          cursor: isDragged ? 'grabbing' : (isSelected ? 'grab' : undefined),
         }}
         onMouseDown={(e) => handleMouseDown(e, widget)}
       >
+        {/* Left resize handle */}
+        <div
+          className="layout-resize-handle layout-resize-left"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: handleW,
+            cursor: 'ew-resize',
+            zIndex: 5,
+          }}
+          onMouseDown={(e) => { e.stopPropagation(); handleResizeMouseDown(e, widget, 'left'); }}
+          onDoubleClick={(e) => { e.stopPropagation(); resizeRef.current.onReset?.(widget.id); }}
+        />
+        {/* Right resize handle */}
+        <div
+          className="layout-resize-handle layout-resize-right"
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: handleW,
+            cursor: 'ew-resize',
+            zIndex: 5,
+          }}
+          onMouseDown={(e) => { e.stopPropagation(); handleResizeMouseDown(e, widget, 'right'); }}
+          onDoubleClick={(e) => { e.stopPropagation(); resizeRef.current.onReset?.(widget.id); }}
+        />
         <button
           className={`widget-vis-toggle ${isHidden ? 'vis-hidden' : ''}`}
           onMouseDown={(e) => e.stopPropagation()}
@@ -523,7 +652,7 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           </span>
         )}
         <span className="layout-widget-pos" style={{ fontSize: fs(9) }}>
-          {isDragged ? `${dragPosRef.current.x},${dragPosRef.current.y}` : `${widget.x},${widget.y}`}
+          {isResizing ? `${displayX},${widget.y} w=${displayW}` : isDragged ? `${dragPosRef.current.x},${dragPosRef.current.y}` : `${widget.x},${widget.y}`}
         </span>
       </div>
     );

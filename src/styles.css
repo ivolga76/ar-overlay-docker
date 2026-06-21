@@ -1994,6 +1994,43 @@ textarea:focus {
   pointer-events: none;
 }
 
+/* Resize handles */
+.layout-resize-handle {
+  opacity: 0;
+  transition: opacity 0.15s;
+  background: rgba(114, 217, 255, 0.0);
+  transition: background 0.15s, opacity 0.15s;
+}
+.layout-widget:hover .layout-resize-handle,
+.layout-widget.selected .layout-resize-handle,
+.layout-widget.resizing .layout-resize-handle {
+  opacity: 1;
+}
+.layout-resize-handle:hover {
+  background: rgba(114, 217, 255, 0.25) !important;
+}
+.layout-resize-left:hover,
+.layout-resize-right:hover {
+  cursor: ew-resize;
+}
+
+/* Adaptive content: wrap text when widget is narrowed */
+.layout-widget .overlay-widget-inner {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+.layout-widget .overlay-tasks-grid {
+  flex-wrap: wrap;
+}
+.layout-widget .overlay-task-tile {
+  max-width: 100%;
+}
+.layout-widget .complication-text {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
 /* ═══════════════════════════════════════════════════════════
    TIMER
    ═══════════════════════════════════════════════════════════ */
