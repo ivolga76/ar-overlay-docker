@@ -306,6 +306,7 @@ function renderWidgets(layout, tasks, complications, standings, scaleFactor, han
       >
         <button
           className={`widget-vis-toggle ${isHidden ? 'vis-hidden' : ''}`}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); toggleWidgetVisibility(widget.id); }}
           title={isHidden ? 'Показать в оверлее' : 'Скрыть из оверлея'}
         >

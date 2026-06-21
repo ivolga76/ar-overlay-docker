@@ -100,6 +100,76 @@ function touch(nextState) {
   return { ...nextState, updatedAt: Date.now() };
 }
 
+/**
+ * Quick comparison of key state fields — returns true if the incoming
+ * WebSocket update is semantically identical to current state.
+ * Used to prevent unnecessary re-renders from echo broadcasts.
+ */
+function stateFieldsEqual(current, incoming) {
+  // overlayLayout: compare visible, position, scale
+  const curLayout = current.overlayLayout;
+  const incLayout = incoming.overlayLayout;
+  if (curLayout && incLayout) {
+    if (curLayout.length !== incLayout.length) return false;
+    for (let i = 0; i < curLayout.length; i++) {
+      const cw = curLayout[i];
+      const iw = incLayout[i];
+      if (!cw || !iw) return false;
+      if (cw.id !== iw.id) return false;
+      if (cw.visible !== iw.visible) return false;
+      if (cw.x !== iw.x) return false;
+      if (cw.y !== iw.y) return false;
+      if (cw.scale !== iw.scale) return false;
+    }
+  } else if (curLayout !== incLayout) {
+    return false;
+  }
+  // Compare key scalar fields
+  if (current.mode !== incoming.mode) return false;
+  if (current.currentRound !== incoming.currentRound) return false;
+  if (current.currentPoints !== incoming.currentPoints) return false;
+  if (current.currentParticipantId !== incoming.currentParticipantId) return false;
+  if (current.showStandings !== incoming.showStandings) return false;
+  if (current.previousPlayerOrTeamId !== incoming.previousPlayerOrTeamId) return false;
+  // Compare tasks length and ids (fast check)
+  const curTasks = current.tasks;
+  const incTasks = incoming.tasks;
+  if (curTasks && incTasks) {
+    if (curTasks.length !== incTasks.length) return false;
+    for (let i = 0; i < curTasks.length; i++) {
+      if (curTasks[i].id !== incTasks[i].id) return false;
+      if (curTasks[i].completed !== incTasks[i].completed) return false;
+      if (curTasks[i].points !== incTasks[i].points) return false;
+    }
+  } else if (curTasks !== incTasks) {
+    return false;
+  }
+  // players/teams: compare length and id order
+  if (!arrayIdsEqual(current.players, incoming.players)) return false;
+  if (!arrayIdsEqual(current.teams, incoming.teams)) return false;
+  // extensions: complications list id + bonusTasks length
+  if (current.extensions && incoming.extensions) {
+    if (!arrayIdsEqual(current.extensions.complications, incoming.extensions.complications)) return false;
+    if (!arrayIdsEqual(current.extensions.bonusTasks, incoming.extensions.bonusTasks)) return false;
+  } else if (!!current.extensions !== !!incoming.extensions) {
+    return false;
+  }
+  // rounds: compare length and id order
+  if (!arrayIdsEqual(current.rounds, incoming.rounds)) return false;
+  return true;
+}
+
+/** Fast array comparison by length and id order */
+function arrayIdsEqual(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.id !== b[i]?.id) return false;
+  }
+  return true;
+}
+
 function updateParticipantCollection(state, updater) {
   if (state.mode === '2x2') {
     return {
@@ -178,7 +248,14 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     });
     on('update', (msg) => {
       syncingFromServer.current = true;
-      setState((current) => normalizeState({ ...current, ...msg.state }));
+      setState((current) => {
+        // Bail out if incoming state is identical - prevents
+        // LayoutEditor jitter from WebSocket echo on visibility toggle
+        if (msg.state && stateFieldsEqual(current, msg.state)) {
+          return current;
+        }
+        return normalizeState({ ...current, ...msg.state });
+      });
     });
     on('updateTasks', (msg) => {
       syncingFromServer.current = true;
