@@ -74,21 +74,16 @@ export default function LayoutEditor() {
       const my = e.clientY - containerRect.top - 16;
       const newSx = mx - dragging.offsetX;
       const newSy = my - dragging.offsetY;
-      // Soft edges during drag — allow slight overshoot for sticky feel
+      // Hard clamp to overlay bounds — identical sticky feel on both sides
       const { x, y } = toLayout(
-        Math.max(-40, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 60)),
-        Math.max(-20, Math.min(newSy, OVERLAY_HEIGHT * scaleFactor - 10)),
+        Math.max(0, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 100)),
+        Math.max(0, Math.min(newSy, OVERLAY_HEIGHT * scaleFactor - 30)),
       );
       dragPosRef.current = { x, y };
       setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : null);
     };
     const handleUp = () => {
-      // Clamp final position within valid range
-      const clamped = {
-        x: Math.max(0, dragPosRef.current.x),
-        y: Math.max(0, dragPosRef.current.y),
-      };
-      updateLayout(dragging.id, clamped);
+      updateLayout(dragging.id, dragPosRef.current);
       setDragging(null);
     };
     window.addEventListener('mousemove', handleMove);
