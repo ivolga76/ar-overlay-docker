@@ -27,6 +27,7 @@ export default function Admin() {
     addTeam,
     removeParticipant,
     toggleStandings,
+    toggleWidgetVisibility,
     resetTournament,
     addComplication,
     updateComplication,
@@ -133,9 +134,6 @@ export default function Admin() {
           >
             📋
           </button>
-          <button type="button" onClick={toggleStandings}>
-            {state.showStandings ? 'Скрыть таблицу' : 'Показать таблицу'}
-          </button>
         </nav>
       </header>
 
@@ -223,6 +221,7 @@ export default function Admin() {
               addTeam={addTeam}
               removeParticipant={removeParticipant}
               toggleStandings={toggleStandings}
+              toggleWidgetVisibility={toggleWidgetVisibility}
               resetTournament={resetTournament}
               addComplication={addComplication}
               updateComplication={updateComplication}

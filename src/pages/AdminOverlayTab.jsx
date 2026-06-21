@@ -25,6 +25,7 @@ export default function AdminOverlayTab({
   addTeam,
   removeParticipant,
   toggleStandings,
+  toggleWidgetVisibility,
   resetTournament,
   addComplication,
   updateComplication,
@@ -207,6 +208,19 @@ export default function AdminOverlayTab({
             onChange={(event) => updateCurrentName(event.target.value)}
             placeholder="Имя игрока или команды"
           />
+        </div>
+
+        <div className="field-row">
+          <label>Versus</label>
+          {(() => {
+            const standingsWidget = state.overlayLayout?.find(w => w.id === 'standings');
+            const visible = standingsWidget ? standingsWidget.visible !== false : false;
+            return (
+              <button type="button" className="admin-btn admin-btn-sm" onClick={() => toggleWidgetVisibility('standings')}>
+                {visible ? 'Скрыть versus' : 'Показать versus'}
+              </button>
+            );
+          })()}
         </div>
 
         <div className="score-controls">
