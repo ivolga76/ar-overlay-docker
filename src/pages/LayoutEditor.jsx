@@ -29,6 +29,7 @@ export default function LayoutEditor() {
   const [selectedId, setSelectedId] = useState(null);
   const [dragging, setDragging] = useState(null);
   const dragPosRef = useRef({ x: 0, y: 0 }); // локальная позиция во время драга
+  const wheelTimerRef = useRef(null);        // debounce timer для скролла
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 960, h: 540 });
 
@@ -118,8 +119,23 @@ export default function LayoutEditor() {
     const widget = layout.find(w => w.id === selectedId);
     if (!widget) return;
     const newScale = Math.max(0.3, Math.min(3.0, (widget.scale || 1) + delta));
-    updateLayout(selectedId, { scale: Math.round(newScale * 100) / 100 });
-  }, [selectedId, layout, updateLayout]);
+    const rounded = Math.round(newScale * 100) / 100;
+    // Сразу показываем визуал через ref (будет подхвачено renderWidgets)
+    // Если уже идёт драг — сохраняем drag-позицию, иначе берём из стейта
+    if (!dragging || dragging.offsetX === undefined) {
+      dragPosRef.current = { x: widget.x, y: widget.y, scale: rounded };
+    } else {
+      dragPosRef.current = { ...dragPosRef.current, scale: rounded };
+    }
+    setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : { id: selectedId, _tick: Date.now() });
+    // Debounce: коммитим в глобальный стейт через 200ms после последнего колёсика
+    if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
+    wheelTimerRef.current = setTimeout(() => {
+      updateLayout(selectedId, { scale: rounded });
+      setDragging(null);
+      wheelTimerRef.current = null;
+    }, 200);
+  }, [selectedId, layout, updateLayout, dragging]);
 
   const selectedWidget = useMemo(() =>
     layout.find(w => w.id === selectedId),
@@ -272,7 +288,7 @@ function renderWidgets(layout, tasks, complications, standings, scaleFactor, han
     const sx = isDragged ? dragPosRef.current.x * scaleFactor : widget.x * scaleFactor;
     const sy = isDragged ? dragPosRef.current.y * scaleFactor : widget.y * scaleFactor;
     const isSelected = widget.id === selectedId;
-    const s = widget.scale || 1;
+    const s = isDragged && dragPosRef.current.scale != null ? dragPosRef.current.scale : (widget.scale || 1);
     const { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
     const isHidden = widget.visible === false;
 
