@@ -483,8 +483,14 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
     const isHidden = widget.visible === false;
     const isFluid = widget.type === 'tasks' || widget.type === 'score' || widget.type === 'complications' || widget.type === 'standings';
 
-    // Масштаб контента: 85% от размера рамки → ~15% паддинга
-    const contentScale = wScale * scaleFactor * 0.87;
+    // Для standings — уменьшаем ширину под мелкий шрифт редактора
+    let adjustedW = w;
+    if (widget.type === 'standings') {
+      const maxNameLen = Math.max(...standList.map(p => (p.name || '').length), 0);
+      adjustedW = Math.max(180, Math.min(420, maxNameLen * 5 + 100));
+    }
+
+    const contentScale = wScale * scaleFactor;
 
     const Preview = PREVIEW_COMPONENTS[widget.type];
 
@@ -495,8 +501,11 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
         style={{
           left: sx,
           top: sy,
-          width: w * wScale * scaleFactor,
+          width: adjustedW * wScale * scaleFactor,
           height: h * wScale * scaleFactor,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           overflow: isFluid ? 'visible' : 'hidden',
           transformOrigin: 'top left',
         }}
@@ -514,13 +523,13 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           <div style={{
             transform: `scale(${contentScale})`,
             transformOrigin: 'top left',
-            width: w,
+            width: isFluid ? 'auto' : adjustedW,
             height: isFluid ? 'auto' : h,
           }}>
             <Preview data={overlayData} />
           </div>
         ) : (
-          <span className="layout-widget-label" style={{ transform: `scale(${wScale * scaleFactor})`, transformOrigin: 'top left' }}>
+          <span className="layout-widget-label" style={{ transform: `scale(${wScale * scaleFactor})` }}>
             {WIDGET_LABELS[widget.type]}
           </span>
         )}
