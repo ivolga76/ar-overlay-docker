@@ -15,12 +15,10 @@ const WIDGET_LABELS = {
 
 export default function LayoutEditor() {
   const { state, updateLayout, resetLayout, setFullLayout, toggleWidgetVisibility, standings, currentParticipant, previousParticipant } = useTournament();
-  // Читаем только нужные поля — timerData игнорируется
   const layout = state.overlayLayout;
   const tasks = state.tasks;
   const complications = state.extensions?.complications || [];
 
-  // Profile state
   const [profileNames, setProfileNames] = useState(() => getProfileNames());
   const [activeProfile, setActiveProfile] = useState(() => getActiveProfileName());
   const [profileInput, setProfileInput] = useState('');
@@ -28,8 +26,8 @@ export default function LayoutEditor() {
 
   const [selectedId, setSelectedId] = useState(null);
   const [dragging, setDragging] = useState(null);
-  const dragPosRef = useRef({ x: 0, y: 0 }); // локальная позиция во время драга
-  const wheelTimerRef = useRef(null);        // debounce timer для скролла
+  const dragPosRef = useRef({ x: 0, y: 0 });
+  const wheelTimerRef = useRef(null);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 960, h: 540 });
 
@@ -45,24 +43,17 @@ export default function LayoutEditor() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  // useMemo защищает пересчёт от timerData-ререндеров
   const scaleFactor = useMemo(() => Math.min(
     containerSize.w / OVERLAY_WIDTH,
     containerSize.h / OVERLAY_HEIGHT,
     1.0
   ), [containerSize.w, containerSize.h]);
 
-  const toScreen = useCallback((x, y) => ({
-    sx: x * scaleFactor,
-    sy: y * scaleFactor,
-  }), [scaleFactor]);
-
   const toLayout = useCallback((sx, sy) => ({
     x: Math.round(sx / scaleFactor),
     y: Math.round(sy / scaleFactor),
   }), [scaleFactor]);
 
-  // Стабильный handleMouseDown
   const handleMouseDown = useCallback((e, widget) => {
     e.preventDefault();
     setSelectedId(widget.id);
@@ -72,16 +63,11 @@ export default function LayoutEditor() {
     const sx = widget.x * scaleFactor;
     const sy = widget.y * scaleFactor;
     dragPosRef.current = { x: widget.x, y: widget.y };
-    setDragging({
-      id: widget.id,
-      offsetX: mx - sx,
-      offsetY: my - sy,
-    });
+    setDragging({ id: widget.id, offsetX: mx - sx, offsetY: my - sy });
   }, [scaleFactor]);
 
   useEffect(() => {
     if (!dragging) return;
-
     const handleMove = (e) => {
       const containerRect = containerRef.current.getBoundingClientRect();
       const mx = e.clientX - containerRect.left - 16;
@@ -92,18 +78,13 @@ export default function LayoutEditor() {
         Math.max(0, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 100)),
         Math.max(0, Math.min(newSy, OVERLAY_HEIGHT * scaleFactor - 30)),
       );
-      // Пишем только в ref — не дёргаем глобальный стейт и WebSocket
       dragPosRef.current = { x, y };
-      // Форсируем ререндер только для visual feedback
       setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : null);
     };
-
     const handleUp = () => {
-      // Коммитим финальную позицию в глобальный стейт ОДИН раз
       updateLayout(dragging.id, dragPosRef.current);
       setDragging(null);
     };
-
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
     return () => {
@@ -120,14 +101,12 @@ export default function LayoutEditor() {
     if (!widget) return;
     const newScale = Math.max(0.3, Math.min(3.0, (widget.scale || 1) + delta));
     const rounded = Math.round(newScale * 100) / 100;
-    // Сразу показываем визуал через ref (будет подхвачено renderWidgets)
     if (!dragging || dragging.offsetX === undefined) {
       dragPosRef.current = { x: widget.x, y: widget.y, scale: rounded };
     } else {
       dragPosRef.current = { ...dragPosRef.current, scale: rounded };
     }
     setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : { id: selectedId, _tick: Date.now() });
-    // Debounce: коммитим в глобальный стейт через 200ms после последнего колёсика
     if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
     wheelTimerRef.current = setTimeout(() => {
       updateLayout(selectedId, { scale: rounded });
@@ -141,7 +120,6 @@ export default function LayoutEditor() {
     [layout, selectedId]
   );
 
-  // Данные для отображения контента внутри виджетов (как в оверлее)
   const overlayData = useMemo(() => ({
     tournamentName: state.tournamentName,
     currentRound: state.currentRound,
@@ -154,28 +132,17 @@ export default function LayoutEditor() {
     standings,
     complications: state.extensions?.complications || [],
   }), [
-    state.tournamentName,
-    state.currentRound,
-    state.totalRounds,
-    currentParticipant,
-    state.tasks,
-    previousParticipant,
-    state.showStandings,
-    standings,
-    state.extensions?.complications,
+    state.tournamentName, state.currentRound, state.totalRounds,
+    currentParticipant, state.tasks, previousParticipant,
+    state.showStandings, standings, state.extensions?.complications,
   ]);
 
-  // ★ Ключевой useMemo: виджеты не пересоздаются на тики таймера
   const widgets = useMemo(() =>
     renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility),
     [layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility]
   );
 
-  // --- Profile handlers ---
-  const refreshProfiles = useCallback(() => {
-    setProfileNames(getProfileNames());
-  }, []);
-
+  const refreshProfiles = useCallback(() => { setProfileNames(getProfileNames()); }, []);
   const handleSaveProfile = useCallback(() => {
     const name = profileInput.trim();
     if (!name) { setProfileMsg('Введите имя профиля'); return; }
@@ -203,9 +170,7 @@ export default function LayoutEditor() {
   const handleDeleteProfile = useCallback((name) => {
     if (!name) return;
     deleteLayoutProfile(name);
-    if (activeProfile === name) {
-      setActiveProfile('');
-    }
+    if (activeProfile === name) setActiveProfile('');
     setProfileMsg(`Профиль «${name}» удалён`);
     refreshProfiles();
   }, [activeProfile, refreshProfiles]);
@@ -230,20 +195,15 @@ export default function LayoutEditor() {
           {activeProfile && <span className="layout-profile-badge">Профиль: {activeProfile}</span>}
         </span>
       </div>
-
       <div className="layout-body">
         <div className="layout-profile-sidebar">
           <div className="sidebar-title">Профили расстановки</div>
           {profileMsg && <span className="layout-profile-msg">{profileMsg}</span>}
           <div className="sidebar-divider" />
-          <input
-            className="layout-profile-input"
-            type="text"
-            value={profileInput}
+          <input className="layout-profile-input" type="text" value={profileInput}
             onChange={(e) => setProfileInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSaveProfile()}
-            placeholder="Имя профиля..."
-          />
+            placeholder="Имя профиля..." />
           <button className="admin-btn admin-btn-sm admin-btn-full" onClick={handleSaveProfile}>Сохранить</button>
           {activeProfile && (
             <button className="admin-btn admin-btn-sm admin-btn-danger admin-btn-full" onClick={() => handleDeleteProfile(activeProfile)}>Удалить профиль</button>
@@ -253,37 +213,17 @@ export default function LayoutEditor() {
               <div className="sidebar-divider" />
               <div className="sidebar-subtitle">Сохранённые:</div>
               {profileNames.map(name => (
-                <div
-                  key={name}
-                  className={`sidebar-profile-item ${name === activeProfile ? 'active' : ''}`}
-                  onClick={() => handleLoadProfile(name)}
-                >
-                  {name}
-                </div>
+                <div key={name} className={`sidebar-profile-item ${name === activeProfile ? 'active' : ''}`}
+                  onClick={() => handleLoadProfile(name)}>{name}</div>
               ))}
             </div>
           )}
           <div className="sidebar-divider" />
           <button className="admin-btn admin-btn-sm admin-btn-full" onClick={handleResetLayout}>Сбросить расстановку</button>
         </div>
-
-        <div
-          ref={containerRef}
-          className="layout-canvas-wrapper"
-          onWheel={handleWheel}
-        >
-          <div
-            className="layout-canvas"
-            style={{
-              width: OVERLAY_WIDTH * scaleFactor,
-              height: OVERLAY_HEIGHT * scaleFactor,
-            }}
-          >
-            <svg
-              className="layout-grid"
-              width={OVERLAY_WIDTH * scaleFactor}
-              height={OVERLAY_HEIGHT * scaleFactor}
-            >
+        <div ref={containerRef} className="layout-canvas-wrapper" onWheel={handleWheel}>
+          <div className="layout-canvas" style={{ width: OVERLAY_WIDTH * scaleFactor, height: OVERLAY_HEIGHT * scaleFactor }}>
+            <svg className="layout-grid" width={OVERLAY_WIDTH * scaleFactor} height={OVERLAY_HEIGHT * scaleFactor}>
               <defs>
                 <pattern id="grid" width={40 * scaleFactor} height={40 * scaleFactor} patternUnits="userSpaceOnUse">
                   <path d={`M ${40 * scaleFactor} 0 L 0 0 0 ${40 * scaleFactor}`} fill="none" stroke="rgba(114,217,255,0.08)" strokeWidth="1" />
@@ -293,7 +233,6 @@ export default function LayoutEditor() {
               <line x1={OVERLAY_WIDTH / 2 * scaleFactor} y1="0" x2={OVERLAY_WIDTH / 2 * scaleFactor} y2={OVERLAY_HEIGHT * scaleFactor} stroke="rgba(114,217,255,0.15)" strokeWidth="1" />
               <line x1="0" y1={OVERLAY_HEIGHT / 2 * scaleFactor} x2={OVERLAY_WIDTH * scaleFactor} y2={OVERLAY_HEIGHT / 2 * scaleFactor} stroke="rgba(114,217,255,0.15)" strokeWidth="1" />
             </svg>
-
             {widgets}
           </div>
         </div>
@@ -302,52 +241,52 @@ export default function LayoutEditor() {
   );
 }
 
-// ── Miniature overlay widget renderers (reuse overlay CSS classes) ────
+// ── Preview components — render at scaled size directly (no CSS transform) ────
 
-function TournamentNamePreview({ data }) {
+function TournamentNamePreview({ data, fs }) {
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-title" style={{ fontSize: '11px' }}>{data.tournamentName || 'Битва за Респект'}</div>
+      <div className="overlay-title" style={{ fontSize: fs(11) }}>{data.tournamentName || 'Битва за Респект'}</div>
     </div>
   );
 }
 
-function RoundPreview({ data }) {
+function RoundPreview({ data, fs }) {
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-round" style={{ fontSize: '10px', marginTop: 0 }}>
+      <div className="overlay-round" style={{ fontSize: fs(10), marginTop: 0 }}>
         Раунд {data.currentRound} из {data.totalRounds}
       </div>
     </div>
   );
 }
 
-function ScorePreview({ data }) {
+function ScorePreview({ data, fs }) {
   return (
     <div className="overlay-widget-inner">
       <div className="overlay-score-row">
-        <span className="overlay-player" style={{ fontSize: '12px', marginTop: 0 }}>{data.name || '---'}</span>
-        <span className="overlay-score" style={{ fontSize: '12px', marginTop: 0 }}>{data.points ?? 0} очк.</span>
+        <span className="overlay-player" style={{ fontSize: fs(12), marginTop: 0 }}>{data.name || '---'}</span>
+        <span className="overlay-score" style={{ fontSize: fs(12), marginTop: 0 }}>{data.points ?? 0} очк.</span>
       </div>
     </div>
   );
 }
 
-function TasksPreview({ data }) {
+function TasksPreview({ data, fs }) {
   const tasks = data.tasks || [];
   const completed = tasks.filter(t => t.completed).length;
-  const cols = tasks.length <= 3 ? 1 : 2;
   return (
-    <div className="overlay-widget-inner" style={{ width: 600 }}>
-      <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '3px', padding: 0 }}>
+    <div className="overlay-widget-inner">
+      <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(3), padding: 0 }}>
         Задачи раунда ({completed}/{tasks.length})
       </div>
-      <div className={tasks.length <= 3 ? `overlay-tasks-grid tasks-row-${tasks.length}` : 'overlay-tasks-grid tasks-multi'}>
+      <div className={tasks.length <= 3 ? `overlay-tasks-grid tasks-row-${tasks.length}` : 'overlay-tasks-grid tasks-multi'}
+        style={{ gap: fs(4) }}>
         {tasks.map((task) => (
           <div key={task.id} className={`overlay-task-tile ${task.completed ? 'completed' : ''}`}
-            style={{ fontSize: '8px', padding: '2px 5px', borderRadius: '3px', gap: '3px' }}>
-            <div className="task-name" style={{ fontSize: '8px' }}>{task.text}</div>
-            <div className="task-cost" style={{ fontSize: '7px' }}>{task.points} очк.</div>
+            style={{ fontSize: fs(8), padding: `${fs(2)} ${fs(5)}`, borderRadius: fs(3), gap: fs(3) }}>
+            <div className="task-name" style={{ fontSize: fs(8) }}>{task.text}</div>
+            <div className="task-cost" style={{ fontSize: fs(7) }}>{task.points} очк.</div>
           </div>
         ))}
       </div>
@@ -355,18 +294,19 @@ function TasksPreview({ data }) {
   );
 }
 
-function TimerPreview() {
-  const r = 24;
-  const stroke = 3;
+function TimerPreview({ fs }) {
+  const r = fs(24);
+  const stroke = fs(3);
+  const dim = r * 2 + stroke * 2;
   const circ = 2 * Math.PI * r;
   return (
     <div className="overlay-widget-inner">
-      <svg width={r * 2 + stroke * 2} height={r * 2 + stroke * 2} viewBox={`0 0 ${r * 2 + stroke * 2} ${r * 2 + stroke * 2}`}>
+      <svg width={dim} height={dim} viewBox={`0 0 ${dim} ${dim}`}>
         <circle cx={r + stroke} cy={r + stroke} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={stroke} />
         <circle cx={r + stroke} cy={r + stroke} r={r} fill="none" stroke="var(--cyan)" strokeWidth={stroke}
           strokeDasharray={`${circ * 0.75} ${circ * 0.25}`} strokeLinecap="round"
           transform={`rotate(-90 ${r + stroke} ${r + stroke})`} />
-        <text x="50%" y="55%" textAnchor="middle" fill="var(--cyan)" fontSize="10" fontWeight="600" fontFamily="var(--display-font)">
+        <text x="50%" y="55%" textAnchor="middle" fill="var(--cyan)" fontSize={fs(10)} fontWeight="600" fontFamily="var(--display-font)">
           1:30
         </text>
       </svg>
@@ -374,31 +314,31 @@ function TimerPreview() {
   );
 }
 
-function PreviousPlayerPreview({ data }) {
+function PreviousPlayerPreview({ data, fs }) {
   if (!data.previousPlayer) {
     return (
       <div className="overlay-widget-inner">
-        <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>Предыдущий игрок</div>
-        <div style={{ fontSize: '9px', color: 'var(--muted)' }}>—</div>
+        <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>Предыдущий игрок</div>
+        <div style={{ fontSize: fs(9), color: 'var(--muted)' }}>—</div>
       </div>
     );
   }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>Предыдущий игрок</div>
-      <div className="overlay-player" style={{ fontSize: '11px', marginTop: 0 }}>{data.previousPlayer.name}</div>
-      <div className="overlay-score" style={{ fontSize: '10px', opacity: 0.7, marginTop: 0 }}>{data.previousPlayer.totalPoints ?? 0} очк.</div>
+      <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>Предыдущий игрок</div>
+      <div className="overlay-player" style={{ fontSize: fs(11), marginTop: 0 }}>{data.previousPlayer.name}</div>
+      <div className="overlay-score" style={{ fontSize: fs(10), opacity: 0.7, marginTop: 0 }}>{data.previousPlayer.totalPoints ?? 0} очк.</div>
     </div>
   );
 }
 
-function StandingsPreview({ data }) {
+function StandingsPreview({ data, fs }) {
   const list = data.standings || [];
   if (!list.length) {
     return (
       <div className="overlay-widget-inner">
-        <div className="overlay-tasks-header vs-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>vs</div>
-        <div style={{ fontSize: '9px', color: 'var(--muted)' }}>Нет данных</div>
+        <div className="overlay-tasks-header vs-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>vs</div>
+        <div style={{ fontSize: fs(9), color: 'var(--muted)' }}>Нет данных</div>
       </div>
     );
   }
@@ -408,20 +348,20 @@ function StandingsPreview({ data }) {
   }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header vs-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>vs</div>
-      <div className="vs-scoreboard" style={{ gap: '2px' }}>
+      <div className="overlay-tasks-header vs-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>vs</div>
+      <div className="vs-scoreboard" style={{ gap: fs(2) }}>
         {pairs.map((pair) => (
-          <div key={pair.left.id} className="vs-row" style={{ padding: '2px 0', animation: 'none' }}>
-            <div className="vs-team vs-team-left" style={{ minWidth: '40px' }}>
-              <span className="vs-name" style={{ fontSize: '8px' }}>{pair.left.name}</span>
+          <div key={pair.left.id} className="vs-row" style={{ padding: `${fs(2)} 0`, animation: 'none' }}>
+            <div className="vs-team vs-team-left" style={{ minWidth: fs(40) }}>
+              <span className="vs-name" style={{ fontSize: fs(8) }}>{pair.left.name}</span>
             </div>
             <div className="vs-score-block">
-              <span className="vs-score vs-score-left" style={{ fontSize: '9px' }}>{pair.left.totalPoints ?? 0}</span>
-              <span className="vs-colon" style={{ fontSize: '9px' }}>:</span>
-              <span className="vs-score vs-score-right" style={{ fontSize: '9px' }}>{pair.right ? pair.right.totalPoints ?? 0 : 0}</span>
+              <span className="vs-score vs-score-left" style={{ fontSize: fs(9) }}>{pair.left.totalPoints ?? 0}</span>
+              <span className="vs-colon" style={{ fontSize: fs(9) }}>:</span>
+              <span className="vs-score vs-score-right" style={{ fontSize: fs(9) }}>{pair.right ? pair.right.totalPoints ?? 0 : 0}</span>
             </div>
-            <div className="vs-team vs-team-right" style={{ minWidth: '40px' }}>
-              {pair.right && <span className="vs-name" style={{ fontSize: '8px' }}>{pair.right.name}</span>}
+            <div className="vs-team vs-team-right" style={{ minWidth: fs(40) }}>
+              {pair.right && <span className="vs-name" style={{ fontSize: fs(8) }}>{pair.right.name}</span>}
             </div>
           </div>
         ))}
@@ -430,27 +370,25 @@ function StandingsPreview({ data }) {
   );
 }
 
-function ComplicationsPreview({ data }) {
+function ComplicationsPreview({ data, fs }) {
   const comps = data.complications || [];
   if (!comps.length) {
     return (
       <div className="overlay-widget-inner">
-        <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>
-          Усложнения (0)
-        </div>
-        <div style={{ fontSize: '8px', color: 'var(--muted)' }}>Нет активных усложнений</div>
+        <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>Усложнения (0)</div>
+        <div style={{ fontSize: fs(8), color: 'var(--muted)' }}>Нет активных усложнений</div>
       </div>
     );
   }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header" style={{ fontSize: '10px', marginBottom: '2px', padding: 0 }}>
+      <div className="overlay-tasks-header" style={{ fontSize: fs(10), marginBottom: fs(2), padding: 0 }}>
         Усложнения ({comps.length})
       </div>
-      <div className="overlay-complications-list" style={{ gap: '1px' }}>
+      <div className="overlay-complications-list" style={{ gap: fs(1) }}>
         {comps.map((comp) => (
-          <div key={comp.id} className="overlay-complication-item" style={{ padding: '1px 0', gap: '4px' }}>
-            <span className="complication-text" style={{ fontSize: '8px' }}>{comp.text}</span>
+          <div key={comp.id} className="overlay-complication-item" style={{ padding: `${fs(1)} 0`, gap: fs(4) }}>
+            <span className="complication-text" style={{ fontSize: fs(8) }}>{comp.text}</span>
           </div>
         ))}
       </div>
@@ -481,22 +419,15 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
     const wScale = isDragged && dragPosRef.current.scale != null ? dragPosRef.current.scale : (widget.scale || 1);
     const { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
     const isHidden = widget.visible === false;
-    const isFluid = widget.type === 'tasks' || widget.type === 'score' || widget.type === 'complications' || widget.type === 'standings';
 
-    // Корректируем ширину под мелкий шрифт редактора
-    let adjustedW = w;
-    if (widget.type === 'standings') {
-      const maxNameLen = Math.max(...standList.map(p => (p.name || '').length), 0);
-      adjustedW = Math.max(200, Math.min(420, maxNameLen * 7 + 100));
-    }
-    if (widget.type === 'tasks') {
-      const count = (taskList || []).length;
-      // Много задач → даём больше ширины под грид
-      adjustedW = Math.max(600, count * 120);
-    }
+    // Effective scale factor for content: widget scale × canvas zoom
+    const effScale = wScale * scaleFactor;
 
-    // Контент на 13% меньше рамки → визуальный паддинг ~15%
-    const contentScale = wScale * scaleFactor * 0.87;
+    // Font-size helper: base px → scaled px
+    const fs = (basePx) => Math.max(5, Math.round(basePx * effScale * 0.87)) + 'px';
+
+    // Spacing helper for padding/margin/gap
+    const sp = (basePx) => Math.max(1, Math.round(basePx * effScale * 0.87)) + 'px';
 
     const Preview = PREVIEW_COMPONENTS[widget.type];
 
@@ -507,13 +438,7 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
         style={{
           left: sx,
           top: sy,
-          width: adjustedW * wScale * scaleFactor,
-          height: h * wScale * scaleFactor,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: isFluid ? 'visible' : 'hidden',
-          transformOrigin: 'top left',
+          padding: `${sp(6)} ${sp(9)}`,
         }}
         onMouseDown={(e) => handleMouseDown(e, widget)}
       >
@@ -526,20 +451,13 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           <span className="vis-eye">👁</span>
         </button>
         {Preview ? (
-          <div style={{
-            transform: `scale(${contentScale})`,
-            transformOrigin: 'top left',
-            width: isFluid ? 'auto' : adjustedW,
-            height: isFluid ? 'auto' : h,
-          }}>
-            <Preview data={overlayData} />
-          </div>
+          <Preview data={overlayData} fs={fs} />
         ) : (
-          <span className="layout-widget-label" style={{ transform: `scale(${wScale * scaleFactor})` }}>
+          <span className="layout-widget-label" style={{ fontSize: fs(12) }}>
             {WIDGET_LABELS[widget.type]}
           </span>
         )}
-        <span className="layout-widget-pos">
+        <span className="layout-widget-pos" style={{ fontSize: sp(9) }}>
           {isDragged ? `${dragPosRef.current.x},${dragPosRef.current.y}` : `${widget.x},${widget.y}`}
         </span>
       </div>
