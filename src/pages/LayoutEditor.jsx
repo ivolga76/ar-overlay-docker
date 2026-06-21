@@ -76,7 +76,7 @@ export default function LayoutEditor() {
       const newSy = my - dragging.offsetY;
       // Hard clamp to overlay bounds — identical sticky feel on both sides
       const { x, y } = toLayout(
-        Math.max(10, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 100)),
+        Math.max(0, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 100)),
         Math.max(0, Math.min(newSy, OVERLAY_HEIGHT * scaleFactor - 30)),
       );
       dragPosRef.current = { x, y };
@@ -105,7 +105,6 @@ export default function LayoutEditor() {
     const { selectedId: sid, layout: lay, updateLayout: upd, dragging: drg } = wheelStateRef.current;
     if (!sid) return;
     e.preventDefault();
-    e.stopPropagation();
     const widget = lay.find(w => w.id === sid);
     if (!widget) return;
     const delta = e.deltaY > 0 ? -0.05 : 0.05;
