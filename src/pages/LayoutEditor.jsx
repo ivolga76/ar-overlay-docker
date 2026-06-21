@@ -463,7 +463,8 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
     const wScale = isDragged && dragPosRef.current.scale != null ? dragPosRef.current.scale : (widget.scale || 1);
     let { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
     const isHidden = widget.visible === false;
-    const isFluid = widget.type === 'tasks' || widget.type === 'score' || widget.type === 'complications' || widget.type === 'standings';
+    const isFluid = widget.type === 'score' || widget.type === 'standings';
+    const isFixedPad = widget.type === 'tasks' || widget.type === 'complications';
 
     // Для Версуса: ширина по контенту (как у Счёта), а не фиксированная
     if (widget.type === 'standings') {
@@ -491,14 +492,18 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           top: sy,
           ...(isFluid
             ? { minWidth: w * effScale, minHeight: h * effScale }
-            : { width: w * effScale, height: h * effScale }
+            : isFixedPad
+              ? { width: w * effScale * 1.3, height: h * effScale }
+              : { width: w * effScale, height: h * effScale }
           ),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           overflow: isFluid ? 'visible' : 'hidden',
           boxSizing: 'border-box',
-          padding: `${Math.max(1, Math.round(3 * effScale))}px`,
+          padding: isFixedPad
+            ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.15 * w * effScale)}px`
+            : `${Math.max(1, Math.round(3 * effScale))}px`,
         }}
         onMouseDown={(e) => handleMouseDown(e, widget)}
       >
