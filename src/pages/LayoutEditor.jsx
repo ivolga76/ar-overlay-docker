@@ -94,34 +94,41 @@ export default function LayoutEditor() {
     };
   }, [dragging, scaleFactor, toLayout, updateLayout]);
 
+  // Ref-based wheel state — avoids listener re-attach on every drag tick
+  const wheelStateRef = useRef({ selectedId: null, layout: null, updateLayout: null, dragging: null });
+  wheelStateRef.current.selectedId = selectedId;
+  wheelStateRef.current.layout = layout;
+  wheelStateRef.current.updateLayout = updateLayout;
+  wheelStateRef.current.dragging = dragging;
+
   const handleWheel = useCallback((e) => {
-    if (!selectedId) return;
+    const { selectedId: sid, layout: lay, updateLayout: upd, dragging: drg } = wheelStateRef.current;
+    if (!sid) return;
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.05 : 0.05;
-    const widget = layout.find(w => w.id === selectedId);
+    const widget = lay.find(w => w.id === sid);
     if (!widget) return;
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
     const newScale = Math.max(0.3, Math.min(3.0, (widget.scale || 1) + delta));
     const rounded = Math.round(newScale * 100) / 100;
-    if (!dragging || dragging.offsetX === undefined) {
+    if (!drg || drg.offsetX === undefined) {
       dragPosRef.current = { x: widget.x, y: widget.y, scale: rounded };
     } else {
       dragPosRef.current = { ...dragPosRef.current, scale: rounded };
     }
-    setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : { id: selectedId, _tick: Date.now() });
+    setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : { id: sid, _tick: Date.now() });
     if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
     wheelTimerRef.current = setTimeout(() => {
-      updateLayout(selectedId, { scale: rounded });
+      upd(sid, { scale: rounded });
       setDragging(null);
       wheelTimerRef.current = null;
     }, 200);
-  }, [selectedId, layout, updateLayout, dragging]);
+  }, []); // stable — reads live values from wheelStateRef
 
-  // Wheel listener on window — works even when mouse is outside canvas
+  // Stable wheel listener on window — added once, never swapped
   useEffect(() => {
-    if (!selectedId) return;
     window.addEventListener('wheel', handleWheel, { passive: false });
     return () => window.removeEventListener('wheel', handleWheel);
-  }, [selectedId, handleWheel]);
+  }, [handleWheel]);
 
   const selectedWidget = useMemo(() =>
     layout.find(w => w.id === selectedId),
