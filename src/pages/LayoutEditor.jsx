@@ -115,6 +115,13 @@ export default function LayoutEditor() {
     }, 200);
   }, [selectedId, layout, updateLayout, dragging]);
 
+  // Wheel listener on window — works even when mouse is outside canvas
+  useEffect(() => {
+    if (!selectedId) return;
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => window.removeEventListener('wheel', handleWheel);
+  }, [selectedId, handleWheel]);
+
   const selectedWidget = useMemo(() =>
     layout.find(w => w.id === selectedId),
     [layout, selectedId]
