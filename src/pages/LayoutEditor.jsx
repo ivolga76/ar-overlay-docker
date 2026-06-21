@@ -294,19 +294,19 @@ function TasksPreview({ data, fs }) {
   );
 }
 
-function TimerPreview({ fs }) {
-  const r = fs(24);
-  const stroke = fs(3);
-  const dim = r * 2 + stroke * 2;
+function TimerPreview({ fs, ns }) {
+  const r = ns(24);
+  const sw = ns(3);
+  const dim = r * 2 + sw * 2;
   const circ = 2 * Math.PI * r;
   return (
     <div className="overlay-widget-inner">
       <svg width={dim} height={dim} viewBox={`0 0 ${dim} ${dim}`}>
-        <circle cx={r + stroke} cy={r + stroke} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={stroke} />
-        <circle cx={r + stroke} cy={r + stroke} r={r} fill="none" stroke="var(--cyan)" strokeWidth={stroke}
+        <circle cx={r + sw} cy={r + sw} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={sw} />
+        <circle cx={r + sw} cy={r + sw} r={r} fill="none" stroke="var(--cyan)" strokeWidth={sw}
           strokeDasharray={`${circ * 0.75} ${circ * 0.25}`} strokeLinecap="round"
-          transform={`rotate(-90 ${r + stroke} ${r + stroke})`} />
-        <text x="50%" y="55%" textAnchor="middle" fill="var(--cyan)" fontSize={fs(10)} fontWeight="600" fontFamily="var(--display-font)">
+          transform={`rotate(-90 ${r + sw} ${r + sw})`} />
+        <text x="50%" y="55%" textAnchor="middle" fill="var(--cyan)" fontSize={ns(10)} fontWeight="600" fontFamily="var(--display-font)">
           1:30
         </text>
       </svg>
@@ -426,6 +426,9 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
     // Font-size helper: base px → scaled px
     const fs = (basePx) => Math.max(5, Math.round(basePx * effScale * 0.87)) + 'px';
 
+    // Numeric scale helper for SVG attributes (no 'px' suffix)
+    const ns = (baseN) => Math.max(2, Math.round(baseN * effScale * 0.87));
+
     // Spacing helper for padding/margin/gap
     const sp = (basePx) => Math.max(1, Math.round(basePx * effScale * 0.87)) + 'px';
 
@@ -451,7 +454,7 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
           <span className="vis-eye">👁</span>
         </button>
         {Preview ? (
-          <Preview data={overlayData} fs={fs} />
+          <Preview data={overlayData} fs={fs} ns={ns} />
         ) : (
           <span className="layout-widget-label" style={{ fontSize: fs(12) }}>
             {WIDGET_LABELS[widget.type]}
