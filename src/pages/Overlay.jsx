@@ -119,9 +119,6 @@ const Standings = memo(function Standings({ data }) {
   }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header vs-header">
-        vs
-      </div>
       <div className="vs-scoreboard">
         {pairs.map((pair, i) => (
           <div key={pair.left.id} className="vs-row">

@@ -464,8 +464,7 @@ function StandingsPreview({ data, fs }) {
   if (!list.length) {
     return (
       <div className="overlay-widget-inner">
-        <div className="overlay-tasks-header vs-header" style={{ fontSize: fs(OV.vsHeader), marginBottom: fs(2), padding: 0 }}>vs</div>
-        <div style={{ fontSize: fs(OV.vsName), color: 'var(--muted)' }}>Нет данных</div>
+      <div style={{ fontSize: fs(OV.vsName), color: 'var(--muted)' }}>Нет данных</div>
       </div>
     );
   }
@@ -475,7 +474,6 @@ function StandingsPreview({ data, fs }) {
   }
   return (
     <div className="overlay-widget-inner">
-      <div className="overlay-tasks-header vs-header" style={{ fontSize: fs(OV.vsHeader), marginBottom: fs(2), padding: 0 }}>vs</div>
       <div className="vs-scoreboard" style={{ gap: fs(2) }}>
         {pairs.map((pair) => (
           <div key={pair.left.id} className="vs-row" style={{ padding: `${fs(OV.vsRowPad / 2)} 0`, animation: 'none' }}>
