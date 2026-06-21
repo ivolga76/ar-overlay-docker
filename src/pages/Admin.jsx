@@ -125,14 +125,27 @@ export default function Admin() {
           </a>
           <button
             type="button"
+            className="copy-link-btn"
             title="Скопировать ссылку на оверлей"
             onClick={() => {
               const url = `${window.location.origin}/overlay/${user.id}`;
-              navigator.clipboard.writeText(url);
+              if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(url).catch(() => fallbackCopy(url));
+              } else {
+                fallbackCopy(url);
+              }
+              function fallbackCopy(text) {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+              }
             }}
-            style={{ fontSize: 13, padding: '4px 10px', cursor: 'pointer' }}
           >
-            📋
+            ⧉
           </button>
         </nav>
       </header>

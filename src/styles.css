@@ -560,6 +560,12 @@ button {
   box-shadow: 0 0 14px rgba(114, 217, 255, 0.18);
 }
 
+.copy-link-btn {
+  font-size: 17px;
+  line-height: 1;
+  padding: 6px 12px;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.35fr) minmax(320px, 1fr);
