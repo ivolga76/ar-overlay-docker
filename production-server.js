@@ -230,7 +230,7 @@ app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
@@ -335,6 +335,436 @@ app.post('/api/change-password', async (req, res) => {
 
   console.log(`[auth] password changed: ${user.email}`);
   res.json({ ok: true });
+});
+
+// ── Auth helpers ───────────────────────────────────────────────
+
+function requireAuth(req, res) {
+  const user = authenticate(req);
+  if (!user) {
+    res.status(401).json({ error: 'Не авторизован' });
+    return null;
+  }
+  return user;
+}
+
+function requireOwnership(req, res, tournamentId) {
+  const user = requireAuth(req, res);
+  if (!user) return null;
+
+  const tournament = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournamentId]);
+  if (!tournament) {
+    res.status(404).json({ error: 'Турнир не найден' });
+    return null;
+  }
+  if (tournament.user_id !== user.id) {
+    res.status(403).json({ error: 'Доступ запрещён' });
+    return null;
+  }
+  return { user, tournament };
+}
+
+// ── Tournament CRUD ────────────────────────────────────────────
+
+// POST /api/tournaments — create tournament
+app.post('/api/tournaments', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const { name, mode, totalRounds, participants, tasks } = req.body || {};
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Название турнира обязательно' });
+  }
+
+  const tournamentMode = mode === '2x2' ? '2x2' : '1x1';
+  const rounds = Math.max(1, Math.min(20, parseInt(totalRounds) || 3));
+  const tournamentId = randomUUID();
+  const now = new Date().toISOString();
+
+  run(
+    'INSERT INTO tournaments (id, user_id, name, mode, status, total_rounds) VALUES (?, ?, ?, ?, ?, ?)',
+    [tournamentId, user.id, name.trim(), tournamentMode, 'draft', rounds]
+  );
+
+  // Create participants
+  if (Array.isArray(participants) && participants.length > 0) {
+    for (let i = 0; i < participants.length; i++) {
+      const p = participants[i];
+      const pid = randomUUID();
+      run(
+        'INSERT INTO tournament_participants (id, tournament_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?)',
+        [pid, tournamentId, p.name || `Участник ${i + 1}`, p.type || 'player', i]
+      );
+      if (p.type === 'team' && Array.isArray(p.players)) {
+        for (let j = 0; j < p.players.length; j++) {
+          const pn = typeof p.players[j] === 'string' ? p.players[j] : p.players[j].name;
+          run(
+            'INSERT INTO participant_members (participant_id, player_name, sort_order) VALUES (?, ?, ?)',
+            [pid, pn || `Игрок ${j + 1}`, j]
+          );
+        }
+      }
+    }
+  } else {
+    // Default participants
+    if (tournamentMode === '1x1') {
+      for (let i = 0; i < 2; i++) {
+        run(
+          'INSERT INTO tournament_participants (id, tournament_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?)',
+          [randomUUID(), tournamentId, `Игрок ${i + 1}`, 'player', i]
+        );
+      }
+    } else {
+      for (let i = 0; i < 2; i++) {
+        const pid = randomUUID();
+        run(
+          'INSERT INTO tournament_participants (id, tournament_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?)',
+          [pid, tournamentId, `Команда ${i + 1}`, 'team', i]
+        );
+        for (let j = 0; j < 2; j++) {
+          run(
+            'INSERT INTO participant_members (participant_id, player_name, sort_order) VALUES (?, ?, ?)',
+            [pid, `Игрок ${j + 1}`, j]
+          );
+        }
+      }
+    }
+  }
+
+  // Create tasks if provided
+  if (Array.isArray(tasks) && tasks.length > 0) {
+    for (let i = 0; i < tasks.length; i++) {
+      const t = tasks[i];
+      run(
+        'INSERT INTO tournament_tasks (id, tournament_id, text, points, sort_order) VALUES (?, ?, ?, ?, ?)',
+        [randomUUID(), tournamentId, t.text || String(t), t.points || 1, i]
+      );
+    }
+  }
+
+  saveToDisk();
+
+  const created = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournamentId]);
+  console.log(`[api] tournament created: "${name}" by ${user.email}`);
+  res.status(201).json({ tournament: created });
+});
+
+// GET /api/tournaments — list user's tournaments
+app.get('/api/tournaments', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const tournaments = query(
+    'SELECT * FROM tournaments WHERE user_id = ? ORDER BY created_at DESC',
+    [user.id]
+  );
+  res.json({ tournaments });
+});
+
+// GET /api/tournaments/:id — tournament details
+app.get('/api/tournaments/:id', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+
+  const { tournament } = owner;
+
+  const participants = query(
+    'SELECT * FROM tournament_participants WHERE tournament_id = ? ORDER BY sort_order',
+    [tournament.id]
+  );
+  for (const p of participants) {
+    if (p.type === 'team') {
+      p.players = query(
+        'SELECT player_name as name FROM participant_members WHERE participant_id = ? ORDER BY sort_order',
+        [p.id]
+      );
+    }
+  }
+
+  const tasks = query(
+    'SELECT * FROM tournament_tasks WHERE tournament_id = ? ORDER BY sort_order',
+    [tournament.id]
+  );
+  const complications = query(
+    'SELECT * FROM tournament_complications WHERE tournament_id = ? ORDER BY sort_order',
+    [tournament.id]
+  );
+  const bonusTasks = query(
+    'SELECT * FROM tournament_bonus_tasks WHERE tournament_id = ? ORDER BY sort_order',
+    [tournament.id]
+  );
+  const rounds = query(
+    'SELECT * FROM round_results WHERE tournament_id = ? ORDER BY round_number, created_at',
+    [tournament.id]
+  );
+  const standings = query(
+    `SELECT ts.*, tp.name as participant_name, tp.type as participant_type
+     FROM tournament_standings ts
+     JOIN tournament_participants tp ON ts.participant_id = tp.id
+     WHERE ts.tournament_id = ?
+     ORDER BY ts.rank`,
+    [tournament.id]
+  );
+
+  res.json({
+    tournament,
+    participants,
+    tasks,
+    complications,
+    bonusTasks,
+    rounds,
+    standings,
+  });
+});
+
+// PUT /api/tournaments/:id — update tournament
+app.put('/api/tournaments/:id', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+
+  const { tournament } = owner;
+  const { name, mode, totalRounds } = req.body || {};
+
+  const updates = [];
+  const params = [];
+
+  if (name !== undefined) {
+    if (!name.trim()) return res.status(400).json({ error: 'Название не может быть пустым' });
+    updates.push('name = ?');
+    params.push(name.trim());
+  }
+  if (mode !== undefined) {
+    if (mode !== '1x1' && mode !== '2x2') return res.status(400).json({ error: 'Режим должен быть 1x1 или 2x2' });
+    updates.push('mode = ?');
+    params.push(mode);
+  }
+  if (totalRounds !== undefined) {
+    const rounds = Math.max(1, Math.min(20, parseInt(totalRounds)));
+    updates.push('total_rounds = ?');
+    params.push(rounds);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'Нет полей для обновления' });
+  }
+
+  params.push(tournament.id);
+  run(`UPDATE tournaments SET ${updates.join(', ')} WHERE id = ?`, params);
+  saveToDisk();
+
+  const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
+  console.log(`[api] tournament updated: "${updated.name}"`);
+  res.json({ tournament: updated });
+});
+
+// DELETE /api/tournaments/:id — delete tournament (draft only)
+app.delete('/api/tournaments/:id', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+
+  const { tournament } = owner;
+
+  if (tournament.status !== 'draft') {
+    return res.status(400).json({ error: 'Можно удалить только черновик турнира' });
+  }
+
+  run('DELETE FROM tournaments WHERE id = ?', [tournament.id]);
+  saveToDisk();
+
+  console.log(`[api] tournament deleted: "${tournament.name}"`);
+  res.json({ ok: true });
+});
+
+// ── Tournament lifecycle ───────────────────────────────────────
+
+// POST /api/tournaments/:id/start — start tournament
+app.post('/api/tournaments/:id/start', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+
+  const { tournament } = owner;
+
+  if (tournament.status !== 'draft') {
+    return res.status(400).json({ error: 'Турнир уже запущен или завершён' });
+  }
+
+  run('UPDATE tournaments SET status = ? WHERE id = ?', ['active', tournament.id]);
+  saveToDisk();
+
+  const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
+  console.log(`[api] tournament started: "${updated.name}"`);
+  res.json({ tournament: updated });
+});
+
+// POST /api/tournaments/:id/complete — complete + standings
+app.post('/api/tournaments/:id/complete', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+
+  const { tournament } = owner;
+
+  if (tournament.status !== 'active') {
+    return res.status(400).json({ error: 'Турнир должен быть активным для завершения' });
+  }
+
+  // Aggregate scores from round_results
+  const participantScores = query(
+    `SELECT participant_id, SUM(points_earned) as total_points
+     FROM round_results
+     WHERE tournament_id = ?
+     GROUP BY participant_id
+     ORDER BY total_points DESC`,
+    [tournament.id]
+  );
+
+  // Include participants with 0 points
+  const allParticipants = query(
+    'SELECT id FROM tournament_participants WHERE tournament_id = ?',
+    [tournament.id]
+  );
+  const scoreMap = new Map();
+  for (const ps of participantScores) {
+    scoreMap.set(ps.participant_id, ps.total_points);
+  }
+  for (const p of allParticipants) {
+    if (!scoreMap.has(p.id)) scoreMap.set(p.id, 0);
+  }
+
+  const sorted = [...scoreMap.entries()].sort((a, b) => b[1] - a[1]);
+
+  // Insert standings with competition ranking
+  let currentRank = 1;
+  const standings = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const [participantId, totalPoints] = sorted[i];
+    if (i > 0 && totalPoints < sorted[i - 1][1]) {
+      currentRank = i + 1;
+    }
+    run(
+      'INSERT OR REPLACE INTO tournament_standings (tournament_id, participant_id, total_points, rank) VALUES (?, ?, ?, ?)',
+      [tournament.id, participantId, totalPoints, currentRank]
+    );
+    standings.push({ participant_id: participantId, total_points: totalPoints, rank: currentRank });
+  }
+
+  const now = new Date().toISOString();
+  run('UPDATE tournaments SET status = ?, completed_at = ? WHERE id = ?', ['completed', now, tournament.id]);
+  saveToDisk();
+
+  const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
+  console.log(`[api] tournament completed: "${updated.name}" (${standings.length} standings)`);
+  res.json({ tournament: updated, standings });
+});
+
+// ── Leaderboard ───────────────────────────────────────────────
+
+// GET /api/leaderboard — global (public)
+app.get('/api/leaderboard', (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+
+  const rows = query(
+    `SELECT 
+       tp.id as participant_id,
+       tp.name as participant_name,
+       tp.type as participant_type,
+       t.id as tournament_id,
+       t.name as tournament_name,
+       t.mode as tournament_mode,
+       ts.total_points,
+       ts.rank as tournament_rank,
+       u.display_name as organizer_name
+     FROM tournament_standings ts
+     JOIN tournament_participants tp ON ts.participant_id = tp.id
+     JOIN tournaments t ON ts.tournament_id = t.id
+     JOIN users u ON t.user_id = u.id
+     WHERE t.status = 'completed'
+     ORDER BY ts.total_points DESC
+     LIMIT ?`,
+    [limit]
+  );
+
+  res.json({ leaderboard: rows });
+});
+
+// GET /api/leaderboard/:tournamentId — per-tournament (public)
+app.get('/api/leaderboard/:tournamentId', (req, res) => {
+  const { tournamentId } = req.params;
+
+  const tournament = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournamentId]);
+  if (!tournament) {
+    return res.status(404).json({ error: 'Турнир не найден' });
+  }
+
+  let standings;
+  if (tournament.status === 'completed') {
+    standings = query(
+      `SELECT ts.*, tp.name as participant_name, tp.type as participant_type
+       FROM tournament_standings ts
+       JOIN tournament_participants tp ON ts.participant_id = tp.id
+       WHERE ts.tournament_id = ?
+       ORDER BY ts.rank`,
+      [tournamentId]
+    );
+  } else {
+    // Live standings from round_results
+    standings = query(
+      `SELECT 
+         tp.id as participant_id,
+         tp.name as participant_name,
+         tp.type as participant_type,
+         COALESCE(SUM(rr.points_earned), 0) as total_points
+       FROM tournament_participants tp
+       LEFT JOIN round_results rr ON tp.id = rr.participant_id
+       WHERE tp.tournament_id = ?
+       GROUP BY tp.id
+       ORDER BY total_points DESC`,
+      [tournamentId]
+    );
+    let rank = 1;
+    for (let i = 0; i < standings.length; i++) {
+      if (i > 0 && standings[i].total_points < standings[i - 1].total_points) {
+        rank = i + 1;
+      }
+      standings[i].rank = rank;
+    }
+  }
+
+  res.json({ tournament, standings });
+});
+
+// ── Profile ────────────────────────────────────────────────────
+
+// GET /api/profile — current user profile
+app.get('/api/profile', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const tournamentCount = queryOne(
+    'SELECT COUNT(*) as count FROM tournaments WHERE user_id = ?',
+    [user.id]
+  );
+  const completedCount = queryOne(
+    "SELECT COUNT(*) as count FROM tournaments WHERE user_id = ? AND status = 'completed'",
+    [user.id]
+  );
+  const activeCount = queryOne(
+    "SELECT COUNT(*) as count FROM tournaments WHERE user_id = ? AND status = 'active'",
+    [user.id]
+  );
+
+  res.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      display_name: user.display_name,
+      created_at: user.created_at,
+    },
+    stats: {
+      tournaments_total: tournamentCount?.count || 0,
+      tournaments_completed: completedCount?.count || 0,
+      tournaments_active: activeCount?.count || 0,
+    },
+  });
 });
 
 // ── Serve static files from dist/ ────────────────────────────
