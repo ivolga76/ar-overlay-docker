@@ -595,10 +595,10 @@ app.post('/api/tournaments/:id/start', (req, res) => {
   saveToDisk();
 
   // Track active tournament for this user
-  activeTournaments.set(user.id, tournament.id);
+  activeTournaments.set(owner.user.id, tournament.id);
 
   const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
-  broadcastTournaments(user.id);
+  broadcastTournaments(owner.user.id);
   console.log(`[api] tournament started: "${updated.name}"`);
   res.json({ tournament: updated });
 });
@@ -615,7 +615,7 @@ app.post('/api/tournaments/:id/complete', (req, res) => {
   }
 
   // Sync userState rounds → round_results (if user has active game state)
-  const userState = userStates.get(user.id);
+  const userState = userStates.get(owner.user.id);
   if (userState && Array.isArray(userState.rounds) && userState.rounds.length > 0) {
     // Build name→id mapping for participants
     const participants = query(
@@ -705,10 +705,10 @@ app.post('/api/tournaments/:id/complete', (req, res) => {
   saveToDisk();
 
   // Clear active tournament tracking
-  activeTournaments.delete(user.id);
+  activeTournaments.delete(owner.user.id);
 
   const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
-  broadcastTournaments(user.id);
+  broadcastTournaments(owner.user.id);
   console.log(`[api] tournament completed: "${updated.name}" (${standings.length} standings)`);
   res.json({ tournament: updated, standings });
 });
