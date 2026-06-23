@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer } from 'ws';
-import { initDatabase, getDb, query, run, closeDatabase, saveToDisk } from './db/connection.js';
+import { initDatabase, getDb, query, queryOne, run, closeDatabase, saveToDisk } from './db/connection.js';
 import { migrate } from './db/migrate.js';
 
 const PORT = 3001;
