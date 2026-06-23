@@ -5,6 +5,7 @@ import AdminOverlayTab from './AdminOverlayTab.jsx';
 import Templates from './Templates.jsx';
 import Settings from './Settings.jsx';
 import LayoutEditor from './LayoutEditor.jsx';
+import TournamentsList from './TournamentsList.jsx';
 import { playParticipantSwitch, playRoundChange } from '../utils/sounds.js';
 
 export default function Admin() {
@@ -164,6 +165,15 @@ export default function Admin() {
           <nav className="sidebar-nav">
             <button
               type="button"
+              className={`sidebar-tab ${activeTab === 'tournaments' ? 'active' : ''}`}
+              onClick={() => setActiveTab('tournaments')}
+              title="Турниры"
+            >
+              <span className="sidebar-icon">🏆</span>
+              <span className="sidebar-label">Турниры</span>
+            </button>
+            <button
+              type="button"
               className={`sidebar-tab ${activeTab === 'overlay' ? 'active' : ''}`}
               onClick={() => setActiveTab('overlay')}
               title="Оверлей"
@@ -215,7 +225,9 @@ export default function Admin() {
 
         {/* --- CONTENT --- */}
         <section className="admin-content">
-          {activeTab === 'overlay' ? (
+          {activeTab === 'tournaments' ? (
+            <TournamentsList />
+          ) : activeTab === 'overlay' ? (
             <AdminOverlayTab
               state={state}
               participants={participants}

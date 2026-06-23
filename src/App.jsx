@@ -2,6 +2,7 @@ import { Component, useEffect } from 'react';
 import Admin from './pages/Admin.jsx';
 import Overlay from './pages/Overlay.jsx';
 import Login from './pages/Login.jsx';
+import Leaderboard from './pages/Leaderboard.jsx';
 import { TournamentProvider } from './state/TournamentContext.jsx';
 import { AuthProvider, useAuth } from './state/AuthContext.jsx';
 
@@ -63,12 +64,18 @@ function AppRouter() {
   const path = window.location.pathname.toLowerCase();
   const isAdmin = path.startsWith('/admin');
   const isOverlay = path.startsWith('/overlay');
+  const isLeaderboard = path.startsWith('/leaderboard');
   const ovUserId = isOverlay ? overlayUserId() : null;
 
   useEffect(() => {
     document.body.classList.toggle('admin-page', isAdmin);
     document.body.classList.toggle('overlay-page', isOverlay);
   }, [isAdmin, isOverlay]);
+
+  // Leaderboard — public page
+  if (isLeaderboard) {
+    return <Leaderboard />;
+  }
 
   // Overlay is always public
   if (isOverlay) {

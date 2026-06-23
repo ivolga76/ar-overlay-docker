@@ -445,6 +445,7 @@ app.post('/api/tournaments', (req, res) => {
   saveToDisk();
 
   const created = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournamentId]);
+  broadcastTournaments(user.id);
   console.log(`[api] tournament created: "${name}" by ${user.email}`);
   res.status(201).json({ tournament: created });
 });
@@ -553,6 +554,7 @@ app.put('/api/tournaments/:id', (req, res) => {
   saveToDisk();
 
   const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
+  broadcastTournaments(user.id);
   console.log(`[api] tournament updated: "${updated.name}"`);
   res.json({ tournament: updated });
 });
@@ -571,6 +573,7 @@ app.delete('/api/tournaments/:id', (req, res) => {
   run('DELETE FROM tournaments WHERE id = ?', [tournament.id]);
   saveToDisk();
 
+  broadcastTournaments(user.id);
   console.log(`[api] tournament deleted: "${tournament.name}"`);
   res.json({ ok: true });
 });
@@ -592,6 +595,7 @@ app.post('/api/tournaments/:id/start', (req, res) => {
   saveToDisk();
 
   const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
+  broadcastTournaments(user.id);
   console.log(`[api] tournament started: "${updated.name}"`);
   res.json({ tournament: updated });
 });
@@ -652,6 +656,7 @@ app.post('/api/tournaments/:id/complete', (req, res) => {
   saveToDisk();
 
   const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
+  broadcastTournaments(user.id);
   console.log(`[api] tournament completed: "${updated.name}" (${standings.length} standings)`);
   res.json({ tournament: updated, standings });
 });
@@ -942,6 +947,14 @@ function broadcast(data, userId) {
       try { client.send(json); } catch (_) {}
     }
   });
+}
+
+function broadcastTournaments(userId) {
+  const tournaments = query(
+    'SELECT * FROM tournaments WHERE user_id = ? ORDER BY created_at DESC',
+    [userId]
+  );
+  broadcast({ type: 'tournaments', tournaments }, userId);
 }
 
 // ── Start ────────────────────────────────────────────────────
