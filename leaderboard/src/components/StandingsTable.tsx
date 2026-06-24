@@ -1,6 +1,5 @@
 // StandingsTable — full tournament standings table
-// ARC Raiders themed: dark panels, rainbow header, sticky columns
-// Design reference: arcraiders.com UI aesthetics (§4) + Google Sheets template
+// Glassmorphism table + Framer Motion spring animations (inspired by sidmax7/leaderboard)
 
 'use client';
 
@@ -41,11 +40,14 @@ export function StandingsTable({
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 pb-12">
-      {/* Header — rainbow stripe with heading-lg */}
+      {/* Header */}
       <RainbowStripe className="rounded-lg overflow-hidden mb-6 crt-scanlines">
         <div className="px-6 py-10 text-center">
           <p className="eyebrow mb-3">ТУРНИРНАЯ ТАБЛИЦА</p>
-          <h1 className="heading-lg mb-1 crt-glow">{title}</h1>
+          <h1 className="heading-lg mb-1 crt-glow">
+            <span className="inline-block mr-3 text-accent-gold crt-glow-gold">🏆</span>
+            {title}
+          </h1>
           {subtitle && (
             <p className="mt-3 text-text-muted text-sm max-w-lg mx-auto leading-relaxed">
               {subtitle}
@@ -68,38 +70,33 @@ export function StandingsTable({
         <div className="w-6" />
       </div>
 
-      {/* Rows */}
-      {isLoading ? (
-        <LoadingSkeleton count={8} />
-      ) : filtered.length === 0 ? (
-        <div className="dark-panel px-8 py-16 text-center">
-          <p className="heading-label mb-2">Нет данных</p>
-          <p className="text-text-muted text-sm">
-            Завершённые турниры появятся здесь. Возвращайтесь после первого турнира.
-          </p>
-        </div>
-      ) : (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={modeFilter}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-col gap-1.5"
-          >
-            {filtered.map((entry, i) => (
-              <PlayerRow
-                key={`${entry.tournamentId}-${entry.nickname}`}
-                entry={entry}
-                index={i}
-              />
-            ))}
-          </motion.div>
-        </AnimatePresence>
-      )}
+      {/* Glassmorphism container for rows (sidmax7 style) */}
+      <div className="dark-panel-glass p-3">
+        {isLoading ? (
+          <LoadingSkeleton count={8} />
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="heading-label mb-2">Нет данных</p>
+            <p className="text-text-muted text-sm">
+              Завершённые турниры появятся здесь. Возвращайтесь после первого турнира.
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence mode="popLayout">
+            <div className="flex flex-col gap-1">
+              {filtered.map((entry, i) => (
+                <PlayerRow
+                  key={`${entry.tournamentId}-${entry.nickname}`}
+                  entry={entry}
+                  index={i}
+                />
+              ))}
+            </div>
+          </AnimatePresence>
+        )}
+      </div>
 
-      {/* Footer — matches "Дата последнего обновления" from sheets */}
+      {/* Footer */}
       {lastUpdated && (
         <div className="mt-8 text-center">
           <p className="text-[11px] text-text-muted tracking-wide">
@@ -113,7 +110,7 @@ export function StandingsTable({
 
 function LoadingSkeleton({ count }: { count: number }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1">
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}

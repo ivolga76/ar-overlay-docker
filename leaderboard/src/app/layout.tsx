@@ -44,7 +44,7 @@ export default function RootLayout({
       lang="ru"
       className={`${urbanist.variable} ${barlow.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col grunge-overlay crt-scanlines">
+      <body className="min-h-full flex flex-col grunge-overlay crt-scanlines animated-neon-bg">
         <RainbowBar />
         {children}
       </body>
