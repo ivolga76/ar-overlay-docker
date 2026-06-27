@@ -12,7 +12,7 @@ services:
     environment:
       - NODE_ENV=production
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/',r=>{process.exit(r.statusCode===200?0:1)})"]
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -28,7 +28,7 @@ services:
       - NODE_ENV=production
       - API_URL=http://app:3001
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3002/"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/',r=>{process.exit(r.statusCode===200?0:1)})"]
       interval: 30s
       timeout: 5s
       start_period: 10s
