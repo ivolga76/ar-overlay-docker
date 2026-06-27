@@ -1,6 +1,9 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import Timer from '../components/Timer.jsx';
 import { getTemplates } from '../state/templateStore.js';
+import { useAuth } from '../state/AuthContext.jsx';
+import { getContracts } from '../utils/apiClient.js';
+import { getStoredSeasonId } from './Settings.jsx';
 
 function TeamLabel({ participant }) {
   if (!participant?.players?.length) return null;
@@ -59,6 +62,65 @@ export default function AdminOverlayTab({
 
   const [spinningComp, setSpinningComp] = useState(false);
   const [spinningCompText, setSpinningCompText] = useState('');
+
+  // ── Contracts roulette (Season 2) ─────────────────────
+  const { token } = useAuth();
+  const [contractPool, setContractPool] = useState([]);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
+
+  const loadContractPool = useCallback(async () => {
+    if (!token) return;
+    const seasonId = getStoredSeasonId();
+    try {
+      const list = await getContracts(seasonId, token);
+      setContractPool(list);
+      setContractsLoaded(true);
+    } catch {
+      setContractsLoaded(true);
+    }
+  }, [token]);
+
+  useEffect(() => { loadContractPool(); }, [loadContractPool]);
+
+  const contractRoulettePool = useMemo(() => {
+    if (!contractsLoaded) return [];
+    const usedTexts = new Set(state.tasks.map((t) => t.text.trim()));
+    return contractPool.filter((c) => !usedTexts.has(c.text.trim()));
+  }, [contractPool, state.tasks, contractsLoaded]);
+
+  const [spinningContract, setSpinningContract] = useState(false);
+  const [spinningContractText, setSpinningContractText] = useState('');
+
+  function handleContractRoulette() {
+    if (contractRoulettePool.length === 0 || spinningContract) return;
+    const pick = contractRoulettePool[Math.floor(Math.random() * contractRoulettePool.length)];
+
+    setSpinningContract(true);
+    const start = Date.now();
+    const DURATION = 3000;
+
+    function cycle() {
+      const elapsed = Date.now() - start;
+      if (elapsed >= DURATION) {
+        addTask(pick.text, pick.points);
+        setSpinningContract(false);
+        setSpinningContractText('');
+        return;
+      }
+      const randomC = contractRoulettePool[Math.floor(Math.random() * contractRoulettePool.length)];
+      setSpinningContractText(randomC.text);
+      const progress = elapsed / DURATION;
+      const delay = progress < 0.7 ? 50 : progress < 0.85 ? 120 : 250;
+      setTimeout(cycle, delay);
+    }
+    cycle();
+  }
+
+  // Season-aware labels
+  const currentSeasonId = getStoredSeasonId();
+  const isSeason2 = currentSeasonId === 'season-2';
+  const taskLabel = isSeason2 ? 'Контракты' : 'Задачи';
+  const taskLabelSingular = isSeason2 ? 'контракт' : 'задание';
 
   function handleComplicationRoulette() {
     if (complicationRoulettePool.length === 0 || spinningComp) return;
@@ -257,8 +319,8 @@ export default function AdminOverlayTab({
       <section className="admin-card tech-panel">
         <div className="card-heading">
           <div>
-            <p className="eyebrow">Задания раунда</p>
-            <h2>Задачи ({state.tasks.length})</h2>
+            <p className="eyebrow">{isSeason2 ? 'Контракты раунда' : 'Задания раунда'}</p>
+            <h2>{taskLabel} ({state.tasks.length})</h2>
           </div>
           <div className="button-pair">
             <button
@@ -273,6 +335,18 @@ export default function AdminOverlayTab({
             <button type="button" onClick={() => setActiveTab('templates')}>
               Добавить
             </button>
+            {contractsLoaded && contractRoulettePool.length > 0 && (
+              <button
+                type="button"
+                className={`roulette-btn${spinningContract ? ' spinning' : ''}`}
+                onClick={handleContractRoulette}
+                disabled={contractRoulettePool.length === 0 || spinningContract}
+                title={spinningContract ? 'Подбор контракта…' : 'Добавить случайный контракт из пула сезона'}
+                style={{ background: 'rgba(255,0,128,0.1)', borderColor: 'var(--magenta)' }}
+              >
+                {spinningContract ? spinningContractText : '📋 Контракт'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -309,7 +383,7 @@ export default function AdminOverlayTab({
                     <button
                       type="button"
                       onClick={() => removeTask(task.id)}
-                      title="Удалить задание"
+                      title={`Удалить ${taskLabelSingular}`}
                     >
                       ×
                     </button>

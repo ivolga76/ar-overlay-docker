@@ -3,6 +3,7 @@ import { OVERLAY_WIDTH, OVERLAY_HEIGHT, getWidgetSize } from '../state/layoutDef
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { TimerWidget } from '../components/Timer'
 import ErrorBoundary from '../components/ErrorBoundary'
+import { getStoredSeasonId } from '../pages/Settings.jsx'
 
 const TournamentName = memo(function TournamentName({ data }) {
   return (
@@ -68,11 +69,13 @@ const Tasks = memo(function Tasks({ data }) {
   const count = data.tasks.length
   const completed = data.tasks.filter(t => t.completed).length
   const gridClass = count <= 3 ? `overlay-tasks-grid tasks-row-${count}` : 'overlay-tasks-grid tasks-multi'
+  const isSeason2 = getStoredSeasonId() === 'season-2';
+  const label = isSeason2 ? 'Контракты' : 'Задачи раунда';
 
   return (
     <div className="overlay-widget-inner">
       <div className="overlay-tasks-header">
-        Задачи раунда ({completed}/{count})
+        {label} ({completed}/{count})
       </div>
       <div className={gridClass}>
         {data.tasks.map((task, i) => (
