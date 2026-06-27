@@ -58,6 +58,7 @@ function findUserById(id) {
 const DEFAULT_STATE = {
   version: 0,
   tasks: [],
+  rouletteItems: [],
   players: [
     { id: 'p-1', name: 'Alex', totalPoints: 0 },
     { id: 'p-2', name: 'Sam', totalPoints: 0 },
@@ -102,6 +103,7 @@ const gameFields = [
   'mode', 'currentRound', 'currentPoints', 'currentParticipantId',
   'tasks', 'players', 'teams', 'showStandings', 'extensions', 'rounds',
   'previousPlayerOrTeamId', 'overlayLayout', 'totalRounds', 'tournamentName', 'soundEnabled',
+  'rouletteItems',
 ];
 
 const userStates = new Map();
@@ -2090,6 +2092,26 @@ wss.on('connection', (ws) => {
           st.timer = msg.timer;
           saveState(effectiveUserId);
           broadcast({ type: 'timer', timer: msg.timer, version: st.version }, effectiveUserId);
+        }
+        break;
+      }
+      case 'spinRoulette': {
+        if (msg.targetAngle != null && ws.authenticated) {
+          broadcast({ type: 'spinRoulette', targetAngle: msg.targetAngle, resultIndex: msg.resultIndex, items: msg.items, spinId: msg.spinId, spinning: true }, effectiveUserId);
+        }
+        break;
+      }
+      case 'setRouletteItems': {
+        if (ws.authenticated) {
+          const st = userStates.get(effectiveUserId);
+          st.rouletteItems = Array.isArray(msg.items) ? msg.items : [];
+          broadcast({ type: 'setRouletteItems', items: st.rouletteItems }, effectiveUserId);
+        }
+        break;
+      }
+      case 'clearRoulette': {
+        if (ws.authenticated) {
+          broadcast({ type: 'clearRoulette' }, effectiveUserId);
         }
         break;
       }
