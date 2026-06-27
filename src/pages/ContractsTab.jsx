@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../state/AuthContext.jsx';
 import { getContracts, addContract, updateContract, deleteContract } from '../utils/apiClient.js';
+import { getStoredSeasonId } from './Settings.jsx';
 
 const CATEGORIES = [
   { value: 'pve', label: 'PvE' },
@@ -8,8 +9,6 @@ const CATEGORIES = [
   { value: 'pvpve', label: 'PvPvE' },
   { value: 'boosty', label: 'Boosty' },
 ];
-
-const SEASON_ID = 'season-2';
 
 export default function ContractsTab() {
   const { token } = useAuth();
@@ -29,9 +28,10 @@ export default function ContractsTab() {
 
   const load = useCallback(async () => {
     if (!token) return;
+    const seasonId = getStoredSeasonId();
     try {
       setError(null);
-      const list = await getContracts(SEASON_ID, token, filterCategory || undefined, false);
+      const list = await getContracts(seasonId, token, filterCategory || undefined, false);
       setContracts(list);
     } catch (e) {
       setError(e.message);
@@ -57,14 +57,14 @@ export default function ContractsTab() {
     setSubmitting(true);
     try {
       if (editingId) {
-        await updateContract(SEASON_ID, editingId, {
+        await updateContract(getStoredSeasonId(), editingId, {
           category: formCategory,
           text: formText.trim(),
           points: formPoints,
           boosty_author: formBoostyAuthor || null,
         }, token);
       } else {
-        await addContract(SEASON_ID, {
+        await addContract(getStoredSeasonId(), {
           category: formCategory,
           text: formText.trim(),
           points: formPoints,
@@ -93,7 +93,7 @@ export default function ContractsTab() {
   const handleDelete = async (id) => {
     if (!confirm('Удалить контракт?')) return;
     try {
-      await deleteContract(SEASON_ID, id, token);
+      await deleteContract(getStoredSeasonId(), id, token);
       await load();
     } catch (e) {
       setError(e.message);

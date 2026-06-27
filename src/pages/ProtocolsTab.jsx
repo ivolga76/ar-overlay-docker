@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../state/AuthContext.jsx';
 import { getProtocols, addProtocol, updateProtocol, deleteProtocol } from '../utils/apiClient.js';
-
-const SEASON_ID = 'season-2';
+import { getStoredSeasonId } from './Settings.jsx';
 
 export default function ProtocolsTab() {
   const { token } = useAuth();
@@ -20,9 +19,10 @@ export default function ProtocolsTab() {
 
   const load = useCallback(async () => {
     if (!token) return;
+    const seasonId = getStoredSeasonId();
     try {
       setError(null);
-      const list = await getProtocols(SEASON_ID, token);
+      const list = await getProtocols(seasonId, token);
       setProtocols(list);
     } catch (e) {
       setError(e.message);
@@ -47,13 +47,13 @@ export default function ProtocolsTab() {
     setSubmitting(true);
     try {
       if (editingId) {
-        await updateProtocol(SEASON_ID, editingId, {
+        await updateProtocol(getStoredSeasonId(), editingId, {
           text: formText.trim(),
           penalty_seconds: formPenalty,
           boosty_author: formBoostyAuthor || null,
         }, token);
       } else {
-        await addProtocol(SEASON_ID, {
+        await addProtocol(getStoredSeasonId(), {
           text: formText.trim(),
           penalty_seconds: formPenalty,
           boosty_author: formBoostyAuthor || null,
@@ -79,7 +79,7 @@ export default function ProtocolsTab() {
   const handleDelete = async (id) => {
     if (!confirm('Удалить протокол?')) return;
     try {
-      await deleteProtocol(SEASON_ID, id, token);
+      await deleteProtocol(getStoredSeasonId(), id, token);
       await load();
     } catch (e) {
       setError(e.message);

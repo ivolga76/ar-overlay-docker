@@ -1,13 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTournament } from '../state/TournamentContext.jsx';
 import { useAuth } from '../state/AuthContext.jsx';
+import { getSeasons } from '../utils/apiClient.js';
+
+export const SEASON_STORAGE_KEY = 'ar-overlay:season';
+
+export function getStoredSeasonId() {
+  return localStorage.getItem(SEASON_STORAGE_KEY) || 'season-2';
+}
 
 export default function Settings() {
   const { state, setTournamentName, setTotalRounds, setSoundEnabled } = useTournament();
-  const { user, changePassword } = useAuth();
+  const { user, changePassword, token } = useAuth();
 
   const [nameDraft, setNameDraft] = useState(state.tournamentName || '');
   const [roundsDraft, setRoundsDraft] = useState(String(state.totalRounds || 3));
+  const [seasons, setSeasons] = useState([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState(getStoredSeasonId());
 
   // Password change state
   const [oldPassword, setOldPassword] = useState('');
@@ -32,6 +41,19 @@ export default function Settings() {
     } else if (Number.isNaN(n) || n < 1) {
       setRoundsDraft(String(state.totalRounds));
     }
+  }
+
+  // Load seasons from API
+  useEffect(() => {
+    if (!token) return;
+    getSeasons(token)
+      .then(setSeasons)
+      .catch(() => {});
+  }, [token]);
+
+  function handleSeasonChange(seasonId) {
+    setSelectedSeasonId(seasonId);
+    localStorage.setItem(SEASON_STORAGE_KEY, seasonId);
   }
 
   function handleSoundToggle() {
@@ -126,6 +148,36 @@ export default function Settings() {
             </button>
           </div>
         </div>
+      </section>
+
+      {/* Season selector */}
+      <section className="admin-card tech-panel">
+        <p className="eyebrow">Сезон</p>
+        <h2>Текущий сезон</h2>
+
+        <div className="field-row">
+          <label htmlFor="settings-season">Выберите сезон</label>
+          {seasons.length > 0 ? (
+            <select
+              id="settings-season"
+              value={selectedSeasonId}
+              onChange={(e) => handleSeasonChange(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              {seasons.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.status === 'active' ? '(активен)' : '(архив)'}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="setting-hint">Загрузка сезонов…</p>
+          )}
+        </div>
+        <p className="setting-hint">
+          Выбранный сезон используется во вкладках «Контракты», «Протоколы» и «Легендарные».
+          Новые турниры по умолчанию создаются в последнем активном сезоне.
+        </p>
       </section>
 
       {/* Sound settings */}

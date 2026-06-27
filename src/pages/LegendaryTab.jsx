@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../state/AuthContext.jsx';
 import { getLegendaryContracts, updateContract } from '../utils/apiClient.js';
-
-const SEASON_ID = 'season-2';
+import { getStoredSeasonId } from './Settings.jsx';
 
 const CATEGORIES = {
   pve: 'PvE',
@@ -19,9 +18,10 @@ export default function LegendaryTab() {
 
   const load = useCallback(async () => {
     if (!token) return;
+    const seasonId = getStoredSeasonId();
     try {
       setError(null);
-      const list = await getLegendaryContracts(SEASON_ID, token);
+      const list = await getLegendaryContracts(seasonId, token);
       setContracts(list);
     } catch (e) {
       setError(e.message);
@@ -35,7 +35,7 @@ export default function LegendaryTab() {
   const handleClearCompletion = async (contract) => {
     if (!confirm(`Сбросить выполнение контракта «${contract.text.slice(0, 60)}…»?`)) return;
     try {
-      await updateContract(SEASON_ID, contract.id, {
+      await updateContract(getStoredSeasonId(), contract.id, {
         completed_by: null,
         completed_at: null,
       }, token);
