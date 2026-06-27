@@ -43,6 +43,11 @@ export default function AdminOverlayTab({
   const [teamSecond, setTeamSecond] = useState('');
   const [pointsDraft, setPointsDraft] = useState(String(state.currentPoints ?? 0));
 
+  // ── Contracts state (must be before roulettePool) ─────────
+  const { token } = useAuth();
+  const [contractPool, setContractPool] = useState([]);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
+
   // Season-aware labels (must be before roulettePool)
   const currentSeasonId = getStoredSeasonId();
   const isSeason2 = currentSeasonId === 'season-2';
@@ -75,9 +80,6 @@ export default function AdminOverlayTab({
   const [spinningCompText, setSpinningCompText] = useState('');
 
   // ── Contracts roulette (Season 2) ─────────────────────
-  const { token } = useAuth();
-  const [contractPool, setContractPool] = useState([]);
-  const [contractsLoaded, setContractsLoaded] = useState(false);
 
   const loadContractPool = useCallback(async () => {
     if (!token) return;
