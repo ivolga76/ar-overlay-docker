@@ -38,6 +38,7 @@ export default function Admin() {
     removeComplication,
     spinRoulette,
     setRouletteItems,
+    resetTasks,
   } = useTournament();
 
   const [activeTab, setActiveTab] = useState('overlay');
@@ -289,6 +290,7 @@ export default function Admin() {
               handleImport={handleImport}
               spinRoulette={spinRoulette}
               setRouletteItems={setRouletteItems}
+              resetTasks={resetTasks}
             />
           ) : activeTab === 'templates' ? (
             <Templates

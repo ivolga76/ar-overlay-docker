@@ -291,6 +291,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
       setState((current) => ({
         ...current,
         rouletteItems: Array.isArray(msg.items) ? msg.items : [],
+        rouletteData: null,
       }));
     });
     on('clearRoulette', () => {
@@ -765,9 +766,10 @@ export function TournamentProvider({ children, overlayUserId = null }) {
   }, []);
 
   const setRouletteItems = useCallback((items) => {
-    setState((current) => touch({ ...current, rouletteItems: items }));
+    setState((current) => touch({ ...current, rouletteItems: items, rouletteData: null }));
     if (connected) {
       send({ type: 'setRouletteItems', items });
+      send({ type: 'clearRoulette' });
     }
   }, [connected, send]);
 
@@ -818,7 +820,6 @@ export function TournamentProvider({ children, overlayUserId = null }) {
         if (connected) {
           send({ type: 'updateTasks', tasks: next.tasks });
           send({ type: 'setRouletteItems', items: newRouletteItems });
-          send({ type: 'clearRoulette' });
         }
 
         return next;

@@ -38,6 +38,7 @@ export default function AdminOverlayTab({
   handleImport,
   spinRoulette,
   setRouletteItems,
+  resetTasks,
 }) {
   const [playerName, setPlayerName] = useState('');
   const [teamName, setTeamName] = useState('');
@@ -361,8 +362,8 @@ export default function AdminOverlayTab({
             {state.rouletteItems && state.rouletteItems.length > 0 && (
               <button
                 type="button"
-                onClick={() => setRouletteItems([])}
-                title="Очистить рулетку"
+                onClick={() => { setRouletteItems([]); resetTasks(); }}
+                title="Очистить рулетку и удалить все контракты из раунда"
                 style={{ padding: '12px 10px', fontSize: 14 }}
               >
                 ✕
