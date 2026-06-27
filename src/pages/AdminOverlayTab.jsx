@@ -87,7 +87,7 @@ export default function AdminOverlayTab({
     if (!token) return;
     const seasonId = getStoredSeasonId();
     try {
-      const list = await getContracts(seasonId, token);
+      const list = await getContracts(seasonId, token, undefined, false);
       setContractPool(list);
       setContractsLoaded(true);
     } catch {

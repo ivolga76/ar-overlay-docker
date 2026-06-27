@@ -293,6 +293,10 @@ export function TournamentProvider({ children, overlayUserId = null }) {
         rouletteItems: Array.isArray(msg.items) ? msg.items : [],
       }));
     });
+    on('clearRoulette', () => {
+      syncingFromServer.current = true;
+      setState((current) => ({ ...current, rouletteData: null }));
+    });
   }, [on]);
 
   // Push current state to server on first connect AND after reconnect (NO timerData — timer syncs separately)
@@ -770,18 +774,56 @@ export function TournamentProvider({ children, overlayUserId = null }) {
   const spinRoulette = useCallback(() => {
     const items = (state.rouletteItems && state.rouletteItems.length > 0) ? state.rouletteItems : state.tasks;
     if (!items.length) return;
+
+    // Fair random: winner is chosen uniformly BEFORE the animation ever starts.
+    // The wheel animation merely lands on the pre-chosen winner — purely cosmetic.
     const resultIndex = Math.floor(Math.random() * items.length);
     const sectorAngle = 360 / items.length;
-    // Random angle within the winning sector, plus multiple full rotations for visual spin
     const sectorStart = resultIndex * sectorAngle;
     const jitter = Math.random() * sectorAngle;
     // Arrow is at 90° (3 o'clock position); land winning sector on the arrow
     const targetAngle = 360 * 5 + ((90 - sectorStart - jitter + 360 * 2) % 360);
-    const data = { targetAngle, resultIndex, items, spinId: Date.now() };
+    const spinId = Date.now();
+    const winningItem = items[resultIndex];
+    const data = { targetAngle, resultIndex, items, spinId };
     setState((current) => ({ ...current, rouletteData: { ...data, spinning: true } }));
     if (connected) {
       send({ type: 'spinRoulette', ...data });
     }
+
+    // After spin animation completes (10s), auto-add winning item to round tasks
+    // and remove it from rouletteItems so it can't be picked again.
+    const SPIN_DURATION = 10000;
+    setTimeout(() => {
+      setState((current) => {
+        // Guard: only apply if this spin is still the active one
+        if (!current.rouletteData || current.rouletteData.spinId !== spinId) return current;
+
+        const newTask = {
+          id: randomUUID(),
+          text: winningItem.text,
+          points: winningItem.points ?? 1,
+          completed: false,
+        };
+        const newRouletteItems = (current.rouletteItems || []).filter(
+          (item) => item.text !== winningItem.text
+        );
+        const next = touch({
+          ...current,
+          tasks: [...current.tasks, newTask],
+          rouletteItems: newRouletteItems,
+          rouletteData: null,
+        });
+
+        if (connected) {
+          send({ type: 'updateTasks', tasks: next.tasks });
+          send({ type: 'setRouletteItems', items: newRouletteItems });
+          send({ type: 'clearRoulette' });
+        }
+
+        return next;
+      });
+    }, SPIN_DURATION);
   }, [state.tasks, state.rouletteItems, connected, send]);
 
   // Memoize standings separately — prevents cascade re-renders on timer ticks
