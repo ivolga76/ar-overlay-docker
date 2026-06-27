@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../state/AuthContext.jsx';
 import { getContracts, addContract, updateContract, deleteContract } from '../utils/apiClient.js';
 import { getStoredSeasonId } from './Settings.jsx';
@@ -10,6 +10,13 @@ const CATEGORIES = [
   { value: 'boosty', label: 'Boosty' },
 ];
 
+const CATEGORY_COLORS = {
+  pve: 'var(--green)',
+  pvp: 'var(--danger)',
+  pvpve: 'var(--orange)',
+  boosty: 'var(--magenta)',
+};
+
 export default function ContractsTab() {
   const { token } = useAuth();
   const [contracts, setContracts] = useState([]);
@@ -17,7 +24,6 @@ export default function ContractsTab() {
   const [error, setError] = useState(null);
   const [filterCategory, setFilterCategory] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
 
   // Form
   const [formCategory, setFormCategory] = useState('pve');
@@ -25,6 +31,9 @@ export default function ContractsTab() {
   const [formPoints, setFormPoints] = useState(2);
   const [formBoostyAuthor, setFormBoostyAuthor] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Debounce refs for inline editing
+  const debounceTimers = useRef({});
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -47,7 +56,6 @@ export default function ContractsTab() {
     setFormText('');
     setFormPoints(2);
     setFormBoostyAuthor('');
-    setEditingId(null);
     setShowForm(false);
   };
 
@@ -56,22 +64,13 @@ export default function ContractsTab() {
     if (!formText.trim()) return;
     setSubmitting(true);
     try {
-      if (editingId) {
-        await updateContract(getStoredSeasonId(), editingId, {
-          category: formCategory,
-          text: formText.trim(),
-          points: formPoints,
-          boosty_author: formBoostyAuthor || null,
-        }, token);
-      } else {
-        await addContract(getStoredSeasonId(), {
-          category: formCategory,
-          text: formText.trim(),
-          points: formPoints,
-          is_legendary: false,
-          boosty_author: formBoostyAuthor || null,
-        }, token);
-      }
+      await addContract(getStoredSeasonId(), {
+        category: formCategory,
+        text: formText.trim(),
+        points: formPoints,
+        is_legendary: false,
+        boosty_author: formBoostyAuthor || null,
+      }, token);
       resetForm();
       await load();
     } catch (e) {
@@ -81,13 +80,50 @@ export default function ContractsTab() {
     }
   };
 
-  const startEdit = (c) => {
-    setFormCategory(c.category);
-    setFormText(c.text);
-    setFormPoints(c.points);
-    setFormBoostyAuthor(c.boosty_author || '');
-    setEditingId(c.id);
-    setShowForm(true);
+  // Inline update with debounce
+  const scheduleUpdate = (contractId, fields) => {
+    if (debounceTimers.current[contractId]) {
+      clearTimeout(debounceTimers.current[contractId]);
+    }
+    debounceTimers.current[contractId] = setTimeout(async () => {
+      try {
+        await updateContract(getStoredSeasonId(), contractId, fields, token);
+      } catch (e) {
+        setError(e.message);
+      }
+    }, 400);
+  };
+
+  const handleTextChange = (contractId, text) => {
+    setContracts((prev) =>
+      prev.map((c) => (c.id === contractId ? { ...c, text } : c))
+    );
+    scheduleUpdate(contractId, { text });
+  };
+
+  const handlePointsChange = (contractId, delta) => {
+    setContracts((prev) =>
+      prev.map((c) => {
+        if (c.id !== contractId) return c;
+        const newPoints = Math.max(1, (c.points || 1) + delta);
+        scheduleUpdate(contractId, { points: newPoints });
+        return { ...c, points: newPoints };
+      })
+    );
+  };
+
+  const handleCategoryChange = (contractId, category) => {
+    setContracts((prev) =>
+      prev.map((c) => (c.id === contractId ? { ...c, category } : c))
+    );
+    scheduleUpdate(contractId, { category });
+  };
+
+  const handleBoostyAuthorChange = (contractId, boosty_author) => {
+    setContracts((prev) =>
+      prev.map((c) => (c.id === contractId ? { ...c, boosty_author } : c))
+    );
+    scheduleUpdate(contractId, { boosty_author: boosty_author || null });
   };
 
   const handleDelete = async (id) => {
@@ -106,16 +142,21 @@ export default function ContractsTab() {
   };
 
   if (loading) {
-    return <div className="tech-panel" style={{ padding: 20 }}><p style={{ color: 'var(--muted)' }}>Загрузка контрактов…</p></div>;
+    return (
+      <section className="admin-card tech-panel" style={{ padding: 20 }}>
+        <p style={{ color: 'var(--muted)' }}>Загрузка контрактов…</p>
+      </section>
+    );
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontFamily: 'var(--display-font)', fontSize: 20 }}>
-          📋 Контракты ({contracts.length})
-        </h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+    <section className="admin-card tech-panel">
+      <div className="card-heading">
+        <div>
+          <p className="eyebrow">Пул контрактов сезона</p>
+          <h2>📋 Контракты ({contracts.length})</h2>
+        </div>
+        <div className="button-pair">
           <select
             value={filterCategory}
             onChange={(e) => { setFilterCategory(e.target.value); setLoading(true); }}
@@ -127,6 +168,7 @@ export default function ContractsTab() {
             ))}
           </select>
           <button
+            type="button"
             className="roulette-btn"
             onClick={() => { resetForm(); setShowForm(!showForm); }}
             style={{ padding: '6px 14px', fontSize: 13 }}
@@ -137,71 +179,138 @@ export default function ContractsTab() {
       </div>
 
       {error && (
-        <div className="tech-panel" style={{ padding: 12, marginBottom: 16, borderColor: 'var(--danger)' }}>
-          <p style={{ color: 'var(--danger)', margin: 0 }}>{error}</p>
+        <div style={{ padding: '8px 0', color: 'var(--danger)', fontSize: 13 }}>
+          {error}
         </div>
       )}
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="tech-panel" style={{ padding: 16, marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <label style={{ flex: '0 0 90px' }}>
-              <span className="eyebrow">Категория</span>
-              <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} style={{ width: '100%' }}>
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </label>
-            <label style={{ flex: '3 1 300px' }}>
-              <span className="eyebrow">Текст</span>
-              <input type="text" value={formText} onChange={(e) => setFormText(e.target.value)} placeholder="Название и описание контракта" required autoFocus style={{ width: '100%' }} />
-            </label>
-            <label style={{ flex: '0 0 70px' }}>
-              <span className="eyebrow">Баллы</span>
-              <input type="number" value={formPoints} onChange={(e) => setFormPoints(Math.max(1, parseInt(e.target.value) || 2))} min={1} max={10} style={{ width: '100%' }} />
-            </label>
-            {(formCategory === 'boosty') && (
-              <label style={{ flex: '0 0 150px' }}>
-                <span className="eyebrow">Автор (Boosty)</span>
-                <input type="text" value={formBoostyAuthor} onChange={(e) => setFormBoostyAuthor(e.target.value)} placeholder="Никнейм" style={{ width: '100%' }} />
-              </label>
-            )}
-            <button type="submit" className="roulette-btn" disabled={submitting} style={{ padding: '8px 16px' }}>
-              {submitting ? 'Сохранение…' : editingId ? 'Обновить' : 'Добавить'}
-            </button>
+        <form onSubmit={handleSubmit} style={{
+          display: 'grid', gridTemplateColumns: '32px 1fr', gap: 10, padding: '10px 0', marginBottom: 8
+        }}>
+          <div /> {/* spacer matching checkbox column */}
+          <div className="task-edit-fields">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <select
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                  style={{ padding: '4px 8px', fontSize: 13, minWidth: 90 }}
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={formText}
+                  onChange={(e) => setFormText(e.target.value)}
+                  placeholder="Название и описание контракта"
+                  required
+                  autoFocus
+                  style={{ flex: 1, minWidth: 200, padding: '4px 8px', fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--muted)' }}>
+                  Баллы
+                  <input
+                    type="number"
+                    value={formPoints}
+                    onChange={(e) => setFormPoints(Math.max(1, parseInt(e.target.value) || 2))}
+                    min={1} max={10}
+                    style={{ width: 56, padding: '4px 6px', textAlign: 'center' }}
+                  />
+                </label>
+                {formCategory === 'boosty' && (
+                  <input
+                    type="text"
+                    value={formBoostyAuthor}
+                    onChange={(e) => setFormBoostyAuthor(e.target.value)}
+                    placeholder="Автор (Boosty)"
+                    style={{ padding: '4px 8px', fontSize: 13, width: 150 }}
+                  />
+                )}
+                <button type="submit" className="roulette-btn" disabled={submitting} style={{ padding: '6px 14px', fontSize: 13 }}>
+                  {submitting ? 'Сохранение…' : 'Добавить'}
+                </button>
+              </div>
+            </div>
           </div>
         </form>
       )}
 
       {contracts.length === 0 ? (
-        <div className="tech-panel" style={{ padding: 20, textAlign: 'center' }}>
-          <p style={{ color: 'var(--muted)' }}>Нет контрактов в этой категории.</p>
+        <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)' }}>
+          Нет контрактов в этой категории.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="admin-task-list">
           {contracts.map((c) => (
-            <div key={c.id} className="tech-panel" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 13, wordBreak: 'break-word' }}>{c.text}</span>
-                <div style={{ marginTop: 2 }}>
-                  <span className="badge" style={{ fontSize: 11, background: 'var(--muted)', marginRight: 6 }}>
-                    {categoryLabel(c.category)}
-                  </span>
-                  <span style={{ color: 'var(--cyan)', fontSize: 12 }}>{c.points} балла</span>
-                  {c.boosty_author && (
-                    <span style={{ color: 'var(--magenta)', fontSize: 12, marginLeft: 8 }}>от {c.boosty_author}</span>
-                  )}
+            <div className="task-item" key={c.id}>
+              <label style={{ display: 'flex', justifyContent: 'center', paddingTop: 12 }}>
+                <span
+                  title={categoryLabel(c.category)}
+                  style={{
+                    display: 'inline-block',
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: CATEGORY_COLORS[c.category] || 'var(--muted)',
+                    boxShadow: `0 0 8px ${CATEGORY_COLORS[c.category] || 'var(--muted)'}`,
+                    flexShrink: 0,
+                  }}
+                />
+              </label>
+              <div className="task-edit-fields">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <textarea
+                    value={c.text}
+                    rows="2"
+                    onChange={(e) => handleTextChange(c.id, e.target.value)}
+                    style={{ resize: 'vertical' }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                      value={c.category}
+                      onChange={(e) => handleCategoryChange(c.id, e.target.value)}
+                      style={{ fontSize: 11, padding: '2px 4px', background: 'rgba(0,0,0,0.3)', color: 'var(--muted)', border: '1px solid rgba(255,255,255,0.1)' }}
+                    >
+                      {CATEGORIES.map((cat) => (
+                        <option key={cat.value} value={cat.value}>{cat.label}</option>
+                      ))}
+                    </select>
+                    {c.boosty_author && (
+                      <span style={{ fontSize: 11, color: 'var(--magenta)' }}>
+                        от{' '}
+                        <input
+                          type="text"
+                          value={c.boosty_author}
+                          onChange={(e) => handleBoostyAuthorChange(c.id, e.target.value)}
+                          style={{
+                            fontSize: 11, padding: '1px 4px', width: 100,
+                            background: 'rgba(0,0,0,0.3)', color: 'var(--magenta)',
+                            border: '1px solid rgba(255,255,255,0.1)'
+                          }}
+                        />
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                <button className="roulette-btn" onClick={() => startEdit(c)} style={{ padding: '4px 10px', fontSize: 12 }}>✎</button>
-                <button className="roulette-btn" onClick={() => handleDelete(c.id)} style={{ padding: '4px 10px', fontSize: 12, color: 'var(--danger)' }}>✕</button>
+                <span>
+                  Баллы
+                  <div className="task-points-stepper">
+                    <button type="button" onClick={() => handlePointsChange(c.id, -1)}>−</button>
+                    <span>{c.points ?? 1}</span>
+                    <button type="button" onClick={() => handlePointsChange(c.id, 1)}>+</button>
+                    <button type="button" onClick={() => handleDelete(c.id)} title="Удалить контракт">×</button>
+                  </div>
+                </span>
               </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
