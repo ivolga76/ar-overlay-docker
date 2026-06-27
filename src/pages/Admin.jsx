@@ -298,7 +298,10 @@ export default function Admin() {
           ) : activeTab === 'layout' ? (
             <LayoutEditor />
           ) : activeTab === 'contracts' ? (
-            <ContractsTab />
+            <ContractsTab
+              overlayTasks={overlayTasks}
+              onAddToRound={addTask}
+            />
           ) : activeTab === 'protocols' ? (
             <ProtocolsTab />
           ) : activeTab === 'legendary' ? (

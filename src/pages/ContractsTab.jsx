@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../state/AuthContext.jsx';
 import { getContracts, addContract, updateContract, deleteContract } from '../utils/apiClient.js';
 import { getStoredSeasonId } from './Settings.jsx';
@@ -17,13 +17,19 @@ const CATEGORY_COLORS = {
   boosty: 'var(--magenta)',
 };
 
-export default function ContractsTab() {
+export default function ContractsTab({ overlayTasks = [], onAddToRound }) {
   const { token } = useAuth();
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterCategory, setFilterCategory] = useState('');
   const [showForm, setShowForm] = useState(false);
+
+  // Texts already in the current round
+  const roundTaskTexts = useMemo(
+    () => new Set(overlayTasks.map((t) => t.text.trim())),
+    [overlayTasks],
+  );
 
   // Form
   const [formCategory, setFormCategory] = useState('pve');
@@ -249,17 +255,16 @@ export default function ContractsTab() {
           {contracts.map((c) => (
             <div className="task-item" key={c.id}>
               <label style={{ display: 'flex', justifyContent: 'center', paddingTop: 12 }}>
-                <span
-                  title={categoryLabel(c.category)}
-                  style={{
-                    display: 'inline-block',
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    background: CATEGORY_COLORS[c.category] || 'var(--muted)',
-                    boxShadow: `0 0 8px ${CATEGORY_COLORS[c.category] || 'var(--muted)'}`,
-                    flexShrink: 0,
+                <input
+                  type="checkbox"
+                  checked={roundTaskTexts.has(c.text.trim())}
+                  onChange={() => {
+                    if (!roundTaskTexts.has(c.text.trim()) && onAddToRound) {
+                      onAddToRound(c.text, c.points);
+                    }
                   }}
+                  disabled={roundTaskTexts.has(c.text.trim())}
+                  title={roundTaskTexts.has(c.text.trim()) ? 'Уже в раунде' : 'Добавить в контракты раунда'}
                 />
               </label>
               <div className="task-edit-fields">
@@ -271,6 +276,18 @@ export default function ContractsTab() {
                     style={{ resize: 'vertical' }}
                   />
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span
+                      title={categoryLabel(c.category)}
+                      style={{
+                        display: 'inline-block',
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: CATEGORY_COLORS[c.category] || 'var(--muted)',
+                        boxShadow: `0 0 6px ${CATEGORY_COLORS[c.category] || 'var(--muted)'}`,
+                        flexShrink: 0,
+                      }}
+                    />
                     <select
                       value={c.category}
                       onChange={(e) => handleCategoryChange(c.id, e.target.value)}
