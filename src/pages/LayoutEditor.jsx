@@ -26,10 +26,18 @@ export default function LayoutEditor() {
   const [profileMsg, setProfileMsg] = useState('');
 
   const [selectedId, setSelectedId] = useState(null);
-  const [dragging, setDragging] = useState(null);
-  const dragPosRef = useRef({ x: 0, y: 0 });
-  const [resizing, setResizing] = useState(null);
-  const resizeRef = useRef({ id: null, edge: null, startX: 0, startWidth: 0, startWidgetX: 0, w: 0, widgetX: 0 });
+
+  // ── Drag state: boolean (for CSS) + refs (metadata) + tick (for position updates) ──
+  const [isDragging, setIsDragging] = useState(false);
+  const dragMetaRef = useRef(null);    // { offsetX, offsetY }
+  const dragPosRef = useRef({ x: 0, y: 0, scale: null });
+  const [dragTick, setDragTick] = useState(0);
+
+  // ── Resize state: same pattern ──
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef({ id: null, edge: null, startX: 0, startWidth: 0, startWidgetX: 0, w: 0, widgetX: 0, onReset: null, _scale: null });
+  const [resizeTick, setResizeTick] = useState(0);
+
   const wheelTimerRef = useRef(null);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 960, h: 540 });
@@ -57,6 +65,7 @@ export default function LayoutEditor() {
     y: Math.round(sy / scaleFactor),
   }), [scaleFactor]);
 
+  // ── Mouse down: start drag ────────────────────────────────────────
   const handleMouseDown = useCallback((e, widget) => {
     e.preventDefault();
     setSelectedId(widget.id);
@@ -65,29 +74,39 @@ export default function LayoutEditor() {
     const my = e.clientY - containerRect.top - 16;
     const sx = widget.x * scaleFactor;
     const sy = widget.y * scaleFactor;
-    dragPosRef.current = { x: widget.x, y: widget.y };
-    setDragging({ id: widget.id, offsetX: mx - sx, offsetY: my - sy });
+    dragPosRef.current = { x: widget.x, y: widget.y, scale: null };
+    dragMetaRef.current = { offsetX: mx - sx, offsetY: my - sy };
+    setIsDragging(true);
   }, [scaleFactor]);
 
+  // ── Drag effect: stable — depends on boolean, not state object ────
   useEffect(() => {
-    if (!dragging) return;
+    if (!isDragging) return;
     const handleMove = (e) => {
       const containerRect = containerRef.current.getBoundingClientRect();
       const mx = e.clientX - containerRect.left - 16;
       const my = e.clientY - containerRect.top - 16;
-      const newSx = mx - dragging.offsetX;
-      const newSy = my - dragging.offsetY;
-      // Hard clamp to overlay bounds — identical sticky feel on both sides
+      const meta = dragMetaRef.current;
+      if (!meta) return;
+      const newSx = mx - meta.offsetX;
+      const newSy = my - meta.offsetY;
       const { x, y } = toLayout(
         Math.max(0, Math.min(newSx, OVERLAY_WIDTH * scaleFactor - 100)),
         Math.max(0, Math.min(newSy, OVERLAY_HEIGHT * scaleFactor - 30)),
       );
-      dragPosRef.current = { x, y };
-      setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : null);
+      dragPosRef.current = { ...dragPosRef.current, x, y };
+      setDragTick(t => t + 1);
     };
     const handleUp = () => {
-      updateLayout(dragging.id, dragPosRef.current);
-      setDragging(null);
+      const dragId = dragMetaRef.current ? selectedId : null;
+      if (dragId) {
+        const pos = dragPosRef.current;
+        const patch = { x: pos.x, y: pos.y };
+        if (pos.scale != null) patch.scale = pos.scale;
+        updateLayout(dragId, patch);
+      }
+      setIsDragging(false);
+      dragMetaRef.current = null;
     };
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
@@ -95,9 +114,9 @@ export default function LayoutEditor() {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [dragging, scaleFactor, toLayout, updateLayout]);
+  }, [isDragging, scaleFactor, toLayout, updateLayout, selectedId]);
 
-  // ── Resize handlers ──────────────────────────────────────────────
+  // ── Resize handlers ────────────────────────────────────────────────
 
   const handleResizeMouseDown = useCallback((e, widget, edge) => {
     e.preventDefault();
@@ -113,50 +132,53 @@ export default function LayoutEditor() {
       w: baseW,
       widgetX: widget.x,
       onReset: (id) => updateLayout(id, { customWidth: null }),
+      _scale: null,
     };
-    setResizing({ id: widget.id, edge, _tick: Date.now() });
+    setIsResizing(true);
   }, [tasks, complications, standings, updateLayout]);
 
+  // ── Resize effect: stable — depends on boolean, not state object ──
   useEffect(() => {
-    if (!resizing) return;
+    if (!isResizing) return;
     const handleMove = (e) => {
       const deltaX = e.clientX - resizeRef.current.startX;
       let newWidth, newX;
       if (resizeRef.current.edge === 'left') {
         newWidth = resizeRef.current.startWidth - deltaX;
         newX = resizeRef.current.startWidgetX + deltaX;
-        // Clamp: min width, left edge >= 0
         newWidth = Math.max(MIN_WIDGET_WIDTH, newWidth);
         const maxX = resizeRef.current.startWidgetX + resizeRef.current.startWidth - MIN_WIDGET_WIDTH;
         newX = Math.max(0, Math.min(newX, maxX));
-        // Recalc width from clamped X
         newWidth = resizeRef.current.startWidgetX + resizeRef.current.startWidth - newX;
       } else {
         newWidth = resizeRef.current.startWidth + deltaX;
         newX = resizeRef.current.startWidgetX;
-        // Clamp: min width, right edge <= OVERLAY_WIDTH
         newWidth = Math.max(MIN_WIDGET_WIDTH, Math.min(newWidth, OVERLAY_WIDTH - newX));
       }
       resizeRef.current.w = Math.round(newWidth);
       resizeRef.current.widgetX = Math.round(newX);
-      setResizing((prev) => prev ? { ...prev, _tick: Date.now() } : null);
+      setResizeTick(t => t + 1);
     };
     const handleUp = () => {
       const finalW = resizeRef.current.w;
       const finalX = resizeRef.current.widgetX;
-      const widget = layout.find(w => w.id === resizing.id);
+      const rid = resizeRef.current.id;
+      const widget = layout.find(w => w.id === rid);
       const defW = widget ? getWidgetSize(widget.type, tasks, complications, standings).w : 80;
       const patch = {};
       if (Math.abs(finalW - defW) > 2) {
         patch.customWidth = finalW;
       } else {
-        patch.customWidth = null; // snap back to default
+        patch.customWidth = null;
       }
       if (resizeRef.current.edge === 'left' && finalX !== resizeRef.current.startWidgetX) {
         patch.x = finalX;
       }
-      updateLayout(resizing.id, patch);
-      setResizing(null);
+      if (resizeRef.current._scale != null) {
+        patch.scale = Math.round(resizeRef.current._scale * 100) / 100;
+      }
+      if (rid) updateLayout(rid, patch);
+      setIsResizing(false);
     };
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
@@ -164,18 +186,18 @@ export default function LayoutEditor() {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [resizing, tasks, complications, standings, updateLayout, layout]);
+  }, [isResizing, tasks, complications, standings, updateLayout, layout]);
 
-  // Ref-based wheel state — avoids listener re-attach on every drag tick
-  const wheelStateRef = useRef({ selectedId: null, layout: null, updateLayout: null, dragging: null, resizing: null });
+  // ── Wheel handler (ref-based, stable listener) ────────────────────
+  const wheelStateRef = useRef({ selectedId: null, layout: null, updateLayout: null, isDragging: false, isResizing: false });
   wheelStateRef.current.selectedId = selectedId;
   wheelStateRef.current.layout = layout;
   wheelStateRef.current.updateLayout = updateLayout;
-  wheelStateRef.current.dragging = dragging;
-  wheelStateRef.current.resizing = resizing;
+  wheelStateRef.current.isDragging = isDragging;
+  wheelStateRef.current.isResizing = isResizing;
 
   const handleWheel = useCallback((e) => {
-    const { selectedId: sid, layout: lay, updateLayout: upd, dragging: drg, resizing: rsg } = wheelStateRef.current;
+    const { selectedId: sid, layout: lay, updateLayout: upd, isDragging: drg, isResizing: rsg } = wheelStateRef.current;
     if (!sid) return;
     e.preventDefault();
     const widget = lay.find(w => w.id === sid);
@@ -184,9 +206,8 @@ export default function LayoutEditor() {
     const newScale = Math.max(0.3, Math.min(3.0, (widget.scale || 1) + delta));
     const rounded = Math.round(newScale * 100) / 100;
     if (rsg) {
-      // During resize, just update scale without touching position
       resizeRef.current._scale = rounded;
-      setResizing((prev) => prev ? { ...prev, _tick: Date.now() } : null);
+      setResizeTick(t => t + 1);
       if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
       wheelTimerRef.current = setTimeout(() => {
         upd(sid, { scale: rounded });
@@ -194,21 +215,20 @@ export default function LayoutEditor() {
       }, 200);
       return;
     }
-    if (!drg || drg.offsetX === undefined) {
+    if (!drg) {
       dragPosRef.current = { x: widget.x, y: widget.y, scale: rounded };
     } else {
       dragPosRef.current = { ...dragPosRef.current, scale: rounded };
     }
-    setDragging((prev) => prev ? { ...prev, _tick: Date.now() } : { id: sid, _tick: Date.now() });
+    setDragTick(t => t + 1);
     if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
     wheelTimerRef.current = setTimeout(() => {
       upd(sid, { scale: rounded });
-      setDragging(null);
       wheelTimerRef.current = null;
     }, 200);
-  }, []); // stable — reads live values from wheelStateRef
+  }, []);
 
-  // Stable wheel listener on window — added once, never swapped
+  // Stable wheel listener on window
   useEffect(() => {
     window.addEventListener('wheel', handleWheel, { passive: false });
     return () => window.removeEventListener('wheel', handleWheel);
@@ -236,10 +256,65 @@ export default function LayoutEditor() {
     state.showStandings, standings, state.extensions?.complications,
   ]);
 
-  const widgets = useMemo(() =>
-    renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility, resizing, resizeRef, handleResizeMouseDown),
-    [layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, toggleWidgetVisibility, resizing, handleResizeMouseDown]
-  );
+  const handleResetWidth = useCallback((id) => {
+    updateLayout(id, { customWidth: null });
+  }, [updateLayout]);
+
+  // ── Widgets: pre-compute positions, pass as simple props to memo'd WidgetItem ──
+  const widgets = useMemo(() => {
+    const taskList = overlayData.tasks || [];
+    const compList = overlayData.complications || [];
+    const standList = overlayData.standings || [];
+    return layout.map(widget => {
+      // Determine if this widget is being dragged/resized
+      const dragged = isDragging && dragMetaRef.current != null;
+      const resizing = isResizing && resizeRef.current.id === widget.id;
+
+      // Position during drag: use dragPosRef, else widget position
+      const sx = (dragged ? dragPosRef.current.x : widget.x) * scaleFactor;
+      const sy = (dragged ? dragPosRef.current.y : widget.y) * scaleFactor;
+      const wScale = (dragged && dragPosRef.current.scale != null)
+        ? dragPosRef.current.scale
+        : (widget.scale || 1);
+
+      // Size: during resize, use resizeRef; else compute from widget type
+      let { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
+      if (widget.customWidth != null) w = widget.customWidth;
+
+      // Standings auto-width (only if no custom width)
+      if (widget.type === 'standings' && widget.customWidth == null) {
+        const maxNameLen = Math.max(...standList.map(p => (p.name || '').length), 0);
+        w = Math.max(180, maxNameLen * 12 + 120);
+      }
+
+      const displayW = resizing ? resizeRef.current.w : w;
+      const displayX = resizing ? resizeRef.current.widgetX : widget.x;
+
+      const isSelected = widget.id === selectedId;
+
+      return (
+        <WidgetItem
+          key={widget.id}
+          widget={widget}
+          overlayData={overlayData}
+          scaleFactor={scaleFactor}
+          effScale={wScale * scaleFactor}
+          sx={sx}
+          sy={sy}
+          displayW={displayW}
+          displayX={displayX}
+          displayH={h}
+          isSelected={isSelected}
+          isDragging={dragged}
+          isResizing={resizing}
+          onMouseDown={handleMouseDown}
+          toggleVisibility={toggleWidgetVisibility}
+          onResizeMouseDown={handleResizeMouseDown}
+          onResetWidth={handleResetWidth}
+        />
+      );
+    });
+  }, [layout, overlayData, scaleFactor, selectedId, isDragging, isResizing, dragTick, resizeTick, handleMouseDown, toggleWidgetVisibility, handleResizeMouseDown, handleResetWidth]);
 
   const refreshProfiles = useCallback(() => { setProfileNames(getProfileNames()); }, []);
   const handleSaveProfile = useCallback(() => {
@@ -340,34 +415,16 @@ export default function LayoutEditor() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════
 // ── Preview components — render at scaled size directly (no CSS transform) ────
 
-// Base font sizes from overlay CSS (styles.css)
 const OV = {
-  title: 24,
-  round: 18,
-  player: 32,
-  score: 38,
-  tasksHeader: 16,
-  taskName: 14,
-  taskCost: 12,
-  taskPadding: 8,
-  taskGap: 8,
-  taskRadius: 8,
-  compHeader: 16,
-  compText: 13,
-  compGap: 8,
-  compListGap: 4,
-  vsHeader: 16,
-  vsName: 16,
-  vsScore: 14,
-  vsTeamMinW: 80,
-  vsRowPad: 6,
-  prevHeader: 16,
-  prevName: 18,
-  prevScore: 16,
-  timerRing: 170,
-  timerStroke: 10,
+  title: 24, round: 18, player: 32, score: 38,
+  tasksHeader: 16, taskName: 14, taskCost: 12, taskPadding: 8,
+  taskGap: 8, taskRadius: 8, compHeader: 16, compText: 13,
+  compGap: 8, compListGap: 4, vsHeader: 16, vsName: 16,
+  vsScore: 14, vsTeamMinW: 80, vsRowPad: 6, prevHeader: 16,
+  prevName: 18, prevScore: 16, timerRing: 170, timerStroke: 10,
   timerText: 48,
 };
 
@@ -513,11 +570,8 @@ function RoulettePreview({ data, fs, ns }) {
   const r = dim / 2 - 10;
   const cx = dim / 2;
   const cy = dim / 2;
-  // Arrow on the right
   const arrowX = dim + 4;
   const arrowY = cy;
-
-  // Generate sector colors
   const colors = ['#ff4d6a', '#ffb347', '#4ecdc4', '#7b68ee', '#ff6b9d', '#c9a0dc', '#48c9b0', '#f4d03f'];
 
   const sectors = items.map((item, i) => {
@@ -531,7 +585,6 @@ function RoulettePreview({ data, fs, ns }) {
     const y2 = cy + r * Math.sin(endRad);
     const largeArc = sectorAngle > 180 ? 1 : 0;
     const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-    // Text position: middle of sector, 60% from center
     const midAngle = (startAngle + endAngle) / 2 - 90;
     const midRad = midAngle * Math.PI / 180;
     const tx = cx + r * 0.6 * Math.cos(midRad);
@@ -557,7 +610,6 @@ function RoulettePreview({ data, fs, ns }) {
           ))}
           <circle cx={cx} cy={cy} r={r * 0.12} fill="#1a1a2e" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
         </g>
-        {/* Arrow pointer — fixed on the right */}
         <polygon
           points={`${arrowX - 16},${arrowY - 10} ${arrowX},${arrowY} ${arrowX - 16},${arrowY + 10}`}
           fill="var(--cyan)"
@@ -607,138 +659,123 @@ const PREVIEW_COMPONENTS = {
   'roulette': RoulettePreview,
 };
 
-const MIN_WIDGET_WIDTH = 60; // px in overlay coords (@1920)
+const MIN_WIDGET_WIDTH = 60;
 
-function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, selectedId, dragging, dragPosRef, toggleWidgetVisibility, resizing, resizeRef, handleResizeMouseDown) {
+// ═══════════════════════════════════════════════════════════════════
+// ── Memo'd WidgetItem — only re-renders when its visual props change ──
+
+const WidgetItem = memo(function WidgetItem({
+  widget,
+  overlayData,
+  scaleFactor,
+  effScale,
+  sx, sy, displayW, displayX, displayH,
+  isSelected,
+  isDragging,
+  isResizing,
+  onMouseDown,
+  toggleVisibility,
+  onResizeMouseDown,
+  onResetWidth,
+}) {
   const taskList = overlayData.tasks || [];
   const compList = overlayData.complications || [];
   const standList = overlayData.standings || [];
-  return layout.map(widget => {
-    const isDragged = dragging?.id === widget.id;
-    const isResizing = resizing?.id === widget.id;
-    const sx = (isDragged ? dragPosRef.current.x : widget.x) * scaleFactor;
-    const sy = (isDragged ? dragPosRef.current.y : widget.y) * scaleFactor;
-    const isSelected = widget.id === selectedId;
-    const wScale = (isDragged && dragPosRef.current.scale != null) ? dragPosRef.current.scale : (widget.scale || 1);
-    let { w, h } = getWidgetSize(widget.type, taskList, compList, standList);
-    const isHidden = widget.visible === false;
-    const isFluid = widget.type === 'score';
-    const isStandings = widget.type === 'standings';
-    const isFixedPad = widget.type === 'tasks' || widget.type === 'complications';
 
-    // Custom width override (set by resize)
-    if (widget.customWidth != null) {
-      w = widget.customWidth;
-    }
+  const isHidden = widget.visible === false;
+  const isFluid = widget.type === 'score';
+  const isStandings = widget.type === 'standings';
+  const isFixedPad = widget.type === 'tasks' || widget.type === 'complications';
+  const isFixedSize = widget.type === 'timer' || widget.type === 'roulette';
 
-    // Для Версуса: ширина по контенту (как у Счёта), а не фиксированная (только если нет customWidth)
-    if (widget.type === 'standings' && widget.customWidth == null) {
-      const maxNameLen = Math.max(...standList.map(p => (p.name || '').length), 0);
-      w = Math.max(180, maxNameLen * 12 + 120);
-    }
+  const handleW = Math.max(4, Math.round(6 * scaleFactor));
 
-    // Effective scale: widget scale × canvas zoom — matches overlay 1:1
-    const effScale = wScale * scaleFactor;
+  // Font-size helper
+  const fs = (basePx) => Math.max(4, Math.round(basePx * effScale)) + 'px';
+  // Numeric scale helper for SVG
+  const ns = (baseN) => Math.max(2, Math.round(baseN * effScale));
 
-    // During resize, show live width from resizeRef
-    const displayW = isResizing ? resizeRef.current.w : w;
-    const displayX = isResizing ? resizeRef.current.widgetX : widget.x;
+  const Preview = PREVIEW_COMPONENTS[widget.type];
 
-    // Font-size helper: base px → scaled px (1:1 with overlay)
-    const fs = (basePx) => Math.max(4, Math.round(basePx * effScale)) + 'px';
+  // Position label
+  let posLabel;
+  if (isResizing) {
+    posLabel = `${displayX},${widget.y} w=${displayW}`;
+  } else if (isDragging) {
+    posLabel = `${Math.round(sx / scaleFactor)},${Math.round(sy / scaleFactor)}`;
+  } else {
+    posLabel = `${widget.x},${widget.y}`;
+  }
 
-    // Numeric scale helper for SVG attributes (no 'px' suffix)
-    const ns = (baseN) => Math.max(2, Math.round(baseN * effScale));
-
-    const Preview = PREVIEW_COMPONENTS[widget.type];
-
-    // Timer and Roulette are fixed size (SVG)
-    const isFixedSize = widget.type === 'timer' || widget.type === 'roulette';
-
-    // Resize handle thickness in scaled px
-    const handleW = Math.max(4, Math.round(6 * scaleFactor));
-
-    return (
+  return (
+    <div
+      className={`layout-widget ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} ${isHidden ? 'widget-hidden' : ''}`}
+      style={{
+        left: isResizing ? displayX * scaleFactor : sx,
+        top: sy,
+        ...(isFixedSize
+          ? { width: displayW * effScale, height: displayH * effScale }
+          : isStandings
+            ? { width: 'auto', minWidth: displayW * effScale, minHeight: displayH * effScale }
+            : isFluid
+              ? { minWidth: displayW * effScale, minHeight: displayH * effScale }
+              : isFixedPad
+                ? { width: displayW * effScale * 1.3, minHeight: displayH * effScale }
+                : { width: displayW * effScale, minHeight: displayH * effScale }
+        ),
+        height: isFixedSize ? undefined : 'auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: isFixedSize ? 'hidden' : 'visible',
+        boxSizing: 'border-box',
+        padding: isStandings
+          ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.10 * displayW * effScale)}px`
+          : isFixedPad
+            ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.15 * displayW * effScale)}px`
+            : `${Math.max(1, Math.round(3 * effScale))}px`,
+        cursor: isDragging ? 'grabbing' : (isSelected ? 'grab' : undefined),
+      }}
+      onMouseDown={(e) => onMouseDown(e, widget)}
+    >
+      {/* Left resize handle */}
       <div
-        key={widget.id}
-        className={`layout-widget ${isSelected ? 'selected' : ''} ${isDragged ? 'dragging' : ''} ${isResizing ? 'resizing' : ''} ${isHidden ? 'widget-hidden' : ''}`}
+        className="layout-resize-handle layout-resize-left"
         style={{
-          left: isResizing ? displayX * scaleFactor : sx,
-          top: sy,
-          ...(isFixedSize
-            ? { width: displayW * effScale, height: h * effScale }
-            : isStandings
-              ? { width: 'auto', minWidth: displayW * effScale, minHeight: h * effScale }
-              : isFluid
-                ? { minWidth: displayW * effScale, minHeight: h * effScale }
-                : isFixedPad
-                  ? { width: displayW * effScale * 1.3, minHeight: h * effScale }
-                  : { width: displayW * effScale, minHeight: h * effScale }
-          ),
-          height: isFixedSize ? undefined : 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: isFixedSize ? 'hidden' : 'visible',
-          boxSizing: 'border-box',
-          padding: isStandings
-            ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.10 * displayW * effScale)}px`
-            : isFixedPad
-              ? `${Math.max(1, Math.round(4 * effScale))}px ${Math.round(0.15 * displayW * effScale)}px`
-              : `${Math.max(1, Math.round(3 * effScale))}px`,
-          cursor: isDragged ? 'grabbing' : (isSelected ? 'grab' : undefined),
+          position: 'absolute', left: 0, top: 0, bottom: 0,
+          width: handleW, cursor: 'ew-resize', zIndex: 5,
         }}
-        onMouseDown={(e) => handleMouseDown(e, widget)}
+        onMouseDown={(e) => { e.stopPropagation(); onResizeMouseDown(e, widget, 'left'); }}
+        onDoubleClick={(e) => { e.stopPropagation(); onResetWidth(widget.id); }}
+      />
+      {/* Right resize handle */}
+      <div
+        className="layout-resize-handle layout-resize-right"
+        style={{
+          position: 'absolute', right: 0, top: 0, bottom: 0,
+          width: handleW, cursor: 'ew-resize', zIndex: 5,
+        }}
+        onMouseDown={(e) => { e.stopPropagation(); onResizeMouseDown(e, widget, 'right'); }}
+        onDoubleClick={(e) => { e.stopPropagation(); onResetWidth(widget.id); }}
+      />
+      <button
+        className={`widget-vis-toggle ${isHidden ? 'vis-hidden' : ''}`}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); toggleVisibility(widget.id); }}
+        title={isHidden ? 'Показать в оверлее' : 'Скрыть из оверлея'}
       >
-        {/* Left resize handle */}
-        <div
-          className="layout-resize-handle layout-resize-left"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: handleW,
-            cursor: 'ew-resize',
-            zIndex: 5,
-          }}
-          onMouseDown={(e) => { e.stopPropagation(); handleResizeMouseDown(e, widget, 'left'); }}
-          onDoubleClick={(e) => { e.stopPropagation(); resizeRef.current.onReset?.(widget.id); }}
-        />
-        {/* Right resize handle */}
-        <div
-          className="layout-resize-handle layout-resize-right"
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: handleW,
-            cursor: 'ew-resize',
-            zIndex: 5,
-          }}
-          onMouseDown={(e) => { e.stopPropagation(); handleResizeMouseDown(e, widget, 'right'); }}
-          onDoubleClick={(e) => { e.stopPropagation(); resizeRef.current.onReset?.(widget.id); }}
-        />
-        <button
-          className={`widget-vis-toggle ${isHidden ? 'vis-hidden' : ''}`}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); toggleWidgetVisibility(widget.id); }}
-          title={isHidden ? 'Показать в оверлее' : 'Скрыть из оверлея'}
-        >
-          <span className="vis-eye">👁</span>
-        </button>
-        {Preview ? (
-          <Preview data={overlayData} fs={fs} ns={ns} />
-        ) : (
-          <span className="layout-widget-label" style={{ fontSize: fs(12) }}>
-            {WIDGET_LABELS[widget.type]}
-          </span>
-        )}
-        <span className="layout-widget-pos" style={{ fontSize: fs(9) }}>
-          {isResizing ? `${displayX},${widget.y} w=${displayW}` : isDragged ? `${dragPosRef.current.x},${dragPosRef.current.y}` : `${widget.x},${widget.y}`}
+        <span className="vis-eye">👁</span>
+      </button>
+      {Preview ? (
+        <Preview data={overlayData} fs={fs} ns={ns} />
+      ) : (
+        <span className="layout-widget-label" style={{ fontSize: fs(12) }}>
+          {WIDGET_LABELS[widget.type]}
         </span>
-      </div>
-    );
-  });
-}
+      )}
+      <span className="layout-widget-pos" style={{ fontSize: fs(9) }}>
+        {posLabel}
+      </span>
+    </div>
+  );
+});
