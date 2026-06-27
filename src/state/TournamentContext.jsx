@@ -767,13 +767,18 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     }
   }, [state.tasks, connected, send]);
 
+  // Memoize standings separately — prevents cascade re-renders on timer ticks
+  const standings = useMemo(() => {
+    const participants = state.mode === '2x2' ? state.teams : state.players;
+    return [...participants].sort(
+      (a, b) => Number(b.totalPoints || 0) - Number(a.totalPoints || 0),
+    );
+  }, [state.mode, state.players, state.teams]);
+
   const value = useMemo(() => {
     const participants = getParticipantList(state);
     const currentParticipant = findParticipant(state);
     const previousParticipant = findParticipant(state, state.previousPlayerOrTeamId);
-    const standings = [...participants].sort(
-      (a, b) => Number(b.totalPoints || 0) - Number(a.totalPoints || 0),
-    );
 
     return {
       state,

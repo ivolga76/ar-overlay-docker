@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
@@ -133,7 +134,41 @@ function loadState(userId) {
   }
 }
 
+// ── Debounced async state persistence (avoids blocking event loop on SD cards) ──
+const saveTimers = new Map();    // userId -> setTimeout handle
+const savePending = new Map();   // userId -> latest state snapshot
+
+function scheduleSave(userId) {
+  if (saveTimers.has(userId)) {
+    clearTimeout(saveTimers.get(userId));
+  }
+  saveTimers.set(userId, setTimeout(() => {
+    saveTimers.delete(userId);
+    const st = savePending.get(userId);
+    savePending.delete(userId);
+    if (!st) return;
+    const file = stateFile(userId);
+    mkdirSync(STATE_DIR, { recursive: true });
+    writeFile(file, JSON.stringify(st, null, 2), 'utf8').catch(err => {
+      console.error(`[state] failed to save ${userId}:`, err.message);
+    });
+  }, 1000));
+}
+
 function saveState(userId) {
+  const st = userStates.get(userId);
+  if (!st) return;
+  savePending.set(userId, { ...st });
+  scheduleSave(userId);
+}
+
+/** Force immediate save for a user — blocks until written */
+function saveStateNow(userId) {
+  if (saveTimers.has(userId)) {
+    clearTimeout(saveTimers.get(userId));
+    saveTimers.delete(userId);
+  }
+  savePending.delete(userId);
   const st = userStates.get(userId);
   if (!st) return;
   mkdirSync(STATE_DIR, { recursive: true });
@@ -2115,7 +2150,7 @@ start();
 function shutdown() {
   console.log('[production-server] shutting down...');
   for (const [userId] of userStates) {
-    try { saveState(userId); } catch (_) {}
+    try { saveStateNow(userId); } catch (_) {}
   }
   try { closeDatabase(); } catch (_) {}
   process.exit(0);
@@ -2126,7 +2161,7 @@ process.on('SIGINT', shutdown);
 process.on('uncaughtException', (e) => {
   console.error('[production-server] uncaughtException:', e.message);
   for (const [userId] of userStates) {
-    try { saveState(userId); } catch (_) {}
+    try { saveStateNow(userId); } catch (_) {}
   }
 });
 process.on('unhandledRejection', (e) => {
