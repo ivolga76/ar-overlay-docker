@@ -371,7 +371,7 @@ app.post('/api/tournaments', (req, res) => {
   const user = requireAuth(req, res);
   if (!user) return;
 
-  const { name, mode, totalRounds, participants, tasks } = req.body || {};
+  const { name, mode, totalRounds, season_id, participants, tasks } = req.body || {};
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Название турнира обязательно' });
   }
@@ -381,9 +381,18 @@ app.post('/api/tournaments', (req, res) => {
   const tournamentId = randomUUID();
   const now = new Date().toISOString();
 
+  // Resolve season: use provided season_id, or default to latest active season
+  let resolvedSeasonId = season_id || null;
+  if (!resolvedSeasonId) {
+    const latestSeason = queryOne(
+      "SELECT id FROM seasons WHERE status = 'active' ORDER BY created_at DESC LIMIT 1"
+    );
+    resolvedSeasonId = latestSeason?.id || null;
+  }
+
   run(
-    'INSERT INTO tournaments (id, user_id, name, mode, status, total_rounds) VALUES (?, ?, ?, ?, ?, ?)',
-    [tournamentId, user.id, name.trim(), tournamentMode, 'draft', rounds]
+    'INSERT INTO tournaments (id, user_id, season_id, name, mode, status, total_rounds) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [tournamentId, user.id, resolvedSeasonId, name.trim(), tournamentMode, 'draft', rounds]
   );
 
   // Create participants
@@ -450,15 +459,22 @@ app.post('/api/tournaments', (req, res) => {
   res.status(201).json({ tournament: created });
 });
 
-// GET /api/tournaments — list user's tournaments
+// GET /api/tournaments — list user's tournaments (with optional season filter)
 app.get('/api/tournaments', (req, res) => {
   const user = requireAuth(req, res);
   if (!user) return;
 
-  const tournaments = query(
-    'SELECT * FROM tournaments WHERE user_id = ? ORDER BY created_at DESC',
-    [user.id]
-  );
+  const { season_id } = req.query;
+  let sql = 'SELECT * FROM tournaments WHERE user_id = ?';
+  const params = [user.id];
+
+  if (season_id) {
+    sql += ' AND season_id = ?';
+    params.push(season_id);
+  }
+
+  sql += ' ORDER BY created_at DESC';
+  const tournaments = query(sql, params);
   res.json({ tournaments });
 });
 
@@ -945,12 +961,17 @@ app.post('/api/tournaments/:id/rounds', (req, res) => {
 app.get('/api/leaderboard', (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
   const mode = req.query.mode; // optional: '1x1' or '2x2'
+  const seasonId = req.query.season_id; // optional: filter by season
 
   const params = [];
-  let modeFilter = '';
+  let filters = '';
   if (mode === '1x1' || mode === '2x2') {
-    modeFilter = 'AND t.mode = ?';
+    filters += ' AND t.mode = ?';
     params.push(mode);
+  }
+  if (seasonId) {
+    filters += ' AND t.season_id = ?';
+    params.push(seasonId);
   }
   params.push(limit);
 
@@ -986,7 +1007,7 @@ app.get('/api/leaderboard', (req, res) => {
        ) rm ON rr.tournament_id = rm.tournament_id AND rr.round_number = rm.round_number
        GROUP BY rr.tournament_id, rr.participant_id
      ) wl ON ts.tournament_id = wl.tournament_id AND ts.participant_id = wl.participant_id
-     WHERE t.status = 'completed' ${modeFilter}
+      WHERE t.status = 'completed' ${filters}
      ORDER BY ts.total_points DESC
      LIMIT ?`,
     params
@@ -999,7 +1020,13 @@ app.get('/api/leaderboard', (req, res) => {
 app.get('/api/leaderboard/:tournamentId', (req, res) => {
   const { tournamentId } = req.params;
 
-  const tournament = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournamentId]);
+  const tournament = queryOne(
+    `SELECT t.*, s.name as season_name 
+     FROM tournaments t 
+     LEFT JOIN seasons s ON t.season_id = s.id 
+     WHERE t.id = ?`,
+    [tournamentId]
+  );
   if (!tournament) {
     return res.status(404).json({ error: 'Турнир не найден' });
   }
@@ -1185,6 +1212,698 @@ app.get('/api/profile', (req, res) => {
     },
   });
 });
+
+// ── Seasons API ────────────────────────────────────────────────
+
+// GET /api/seasons — list all seasons (public)
+app.get('/api/seasons', (req, res) => {
+  const seasons = query('SELECT * FROM seasons ORDER BY created_at DESC');
+  res.json({ seasons });
+});
+
+// POST /api/seasons — create a season (auth)
+app.post('/api/seasons', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const { id, name, description, started_at } = req.body || {};
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Название сезона обязательно' });
+  }
+  if (!id || !id.trim()) {
+    return res.status(400).json({ error: 'ID сезона обязателен (например: season-3)' });
+  }
+
+  const existing = queryOne('SELECT id FROM seasons WHERE id = ?', [id.trim()]);
+  if (existing) {
+    return res.status(409).json({ error: 'Сезон с таким ID уже существует' });
+  }
+
+  run(
+    'INSERT INTO seasons (id, name, description, status, started_at) VALUES (?, ?, ?, ?, ?)',
+    [id.trim(), name.trim(), description || null, 'active', started_at || null]
+  );
+  saveToDisk();
+
+  const season = queryOne('SELECT * FROM seasons WHERE id = ?', [id.trim()]);
+  res.status(201).json({ season });
+});
+
+// GET /api/seasons/:id — season detail (public)
+app.get('/api/seasons/:id', (req, res) => {
+  const season = queryOne('SELECT * FROM seasons WHERE id = ?', [req.params.id]);
+  if (!season) {
+    return res.status(404).json({ error: 'Сезон не найден' });
+  }
+
+  // Include counts
+  const tournamentCount = queryOne(
+    'SELECT COUNT(*) as count FROM tournaments WHERE season_id = ?',
+    [season.id]
+  );
+  const completedCount = queryOne(
+    "SELECT COUNT(*) as count FROM tournaments WHERE season_id = ? AND status = 'completed'",
+    [season.id]
+  );
+
+  res.json({
+    season,
+    stats: {
+      tournaments_total: tournamentCount?.count || 0,
+      tournaments_completed: completedCount?.count || 0,
+    },
+  });
+});
+
+// PUT /api/seasons/:id — update season (auth)
+app.put('/api/seasons/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const season = queryOne('SELECT * FROM seasons WHERE id = ?', [req.params.id]);
+  if (!season) {
+    return res.status(404).json({ error: 'Сезон не найден' });
+  }
+
+  const { name, description, status, started_at, ended_at } = req.body || {};
+  const updates = [];
+  const params = [];
+
+  if (name !== undefined) { updates.push('name = ?'); params.push(name.trim()); }
+  if (description !== undefined) { updates.push('description = ?'); params.push(description); }
+  if (status !== undefined) { updates.push('status = ?'); params.push(status); }
+  if (started_at !== undefined) { updates.push('started_at = ?'); params.push(started_at); }
+  if (ended_at !== undefined) { updates.push('ended_at = ?'); params.push(ended_at); }
+
+  if (updates.length > 0) {
+    params.push(season.id);
+    run(`UPDATE seasons SET ${updates.join(', ')} WHERE id = ?`, params);
+    saveToDisk();
+  }
+
+  const updated = queryOne('SELECT * FROM seasons WHERE id = ?', [season.id]);
+  res.json({ season: updated });
+});
+
+// ── Contracts Pool API ────────────────────────────────────────
+
+// GET /api/seasons/:id/contracts — list all contracts (with optional filters)
+app.get('/api/seasons/:id/contracts', (req, res) => {
+  const { category, legendary } = req.query;
+  let sql = 'SELECT * FROM contracts WHERE season_id = ?';
+  const params = [req.params.id];
+
+  if (category && ['pve','pvp','pvpve','boosty'].includes(category)) {
+    sql += ' AND category = ?';
+    params.push(category);
+  }
+  if (legendary === '1') {
+    sql += ' AND is_legendary = 1';
+  } else if (legendary === '0') {
+    sql += ' AND is_legendary = 0';
+  }
+
+  sql += ' ORDER BY sort_order';
+  const contracts = query(sql, params);
+  res.json({ contracts });
+});
+
+// POST /api/seasons/:id/contracts — add contract (auth)
+app.post('/api/seasons/:id/contracts', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const season = queryOne('SELECT * FROM seasons WHERE id = ?', [req.params.id]);
+  if (!season) {
+    return res.status(404).json({ error: 'Сезон не найден' });
+  }
+
+  const { category, text, points, is_legendary, boosty_author } = req.body || {};
+  if (!category || !text || !text.trim()) {
+    return res.status(400).json({ error: 'Категория и текст контракта обязательны' });
+  }
+  if (!['pve','pvp','pvpve','boosty'].includes(category)) {
+    return res.status(400).json({ error: 'Недопустимая категория' });
+  }
+
+  const maxOrder = queryOne(
+    'SELECT MAX(sort_order) as max_order FROM contracts WHERE season_id = ?',
+    [season.id]
+  );
+  const sortOrder = (maxOrder?.max_order ?? -1) + 1;
+  const cid = randomUUID();
+
+  run(
+    `INSERT INTO contracts (id, season_id, category, text, points, is_legendary, boosty_author, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [cid, season.id, category, text.trim(), points || 2, is_legendary ? 1 : 0, boosty_author || null, sortOrder]
+  );
+  saveToDisk();
+
+  const contract = queryOne('SELECT * FROM contracts WHERE id = ?', [cid]);
+  res.status(201).json({ contract });
+});
+
+// PUT /api/seasons/:id/contracts/:cid — update contract (auth)
+app.put('/api/seasons/:id/contracts/:cid', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const contract = queryOne(
+    'SELECT * FROM contracts WHERE id = ? AND season_id = ?',
+    [req.params.cid, req.params.id]
+  );
+  if (!contract) {
+    return res.status(404).json({ error: 'Контракт не найден' });
+  }
+
+  const { category, text, points, is_legendary, boosty_author, completed_by, completed_at } = req.body || {};
+  const updates = [];
+  const params = [];
+
+  if (category !== undefined) { updates.push('category = ?'); params.push(category); }
+  if (text !== undefined) { updates.push('text = ?'); params.push(text); }
+  if (points !== undefined) { updates.push('points = ?'); params.push(points); }
+  if (is_legendary !== undefined) { updates.push('is_legendary = ?'); params.push(is_legendary ? 1 : 0); }
+  if (boosty_author !== undefined) { updates.push('boosty_author = ?'); params.push(boosty_author || null); }
+  if (completed_by !== undefined) { updates.push('completed_by = ?'); params.push(completed_by || null); }
+  if (completed_at !== undefined) { updates.push('completed_at = ?'); params.push(completed_at || null); }
+
+  if (updates.length > 0) {
+    params.push(contract.id);
+    run(`UPDATE contracts SET ${updates.join(', ')} WHERE id = ?`, params);
+    saveToDisk();
+  }
+
+  const updated = queryOne('SELECT * FROM contracts WHERE id = ?', [contract.id]);
+  res.json({ contract: updated });
+});
+
+// DELETE /api/seasons/:id/contracts/:cid — delete contract (auth)
+app.delete('/api/seasons/:id/contracts/:cid', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const contract = queryOne(
+    'SELECT * FROM contracts WHERE id = ? AND season_id = ?',
+    [req.params.cid, req.params.id]
+  );
+  if (!contract) {
+    return res.status(404).json({ error: 'Контракт не найден' });
+  }
+
+  run('DELETE FROM contracts WHERE id = ?', [contract.id]);
+  saveToDisk();
+  res.json({ ok: true });
+});
+
+// ── Protocols Pool API ────────────────────────────────────────
+
+// GET /api/seasons/:id/protocols — list all protocols
+app.get('/api/seasons/:id/protocols', (req, res) => {
+  const protocols = query(
+    'SELECT * FROM protocols WHERE season_id = ? ORDER BY sort_order',
+    [req.params.id]
+  );
+  res.json({ protocols });
+});
+
+// POST /api/seasons/:id/protocols — add protocol (auth)
+app.post('/api/seasons/:id/protocols', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const season = queryOne('SELECT * FROM seasons WHERE id = ?', [req.params.id]);
+  if (!season) {
+    return res.status(404).json({ error: 'Сезон не найден' });
+  }
+
+  const { text, penalty_seconds, boosty_author } = req.body || {};
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Текст протокола обязателен' });
+  }
+
+  const maxOrder = queryOne(
+    'SELECT MAX(sort_order) as max_order FROM protocols WHERE season_id = ?',
+    [season.id]
+  );
+  const sortOrder = (maxOrder?.max_order ?? -1) + 1;
+  const pid = randomUUID();
+
+  run(
+    'INSERT INTO protocols (id, season_id, text, penalty_seconds, boosty_author, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+    [pid, season.id, text.trim(), penalty_seconds || 60, boosty_author || null, sortOrder]
+  );
+  saveToDisk();
+
+  const protocol = queryOne('SELECT * FROM protocols WHERE id = ?', [pid]);
+  res.status(201).json({ protocol });
+});
+
+// PUT /api/seasons/:id/protocols/:pid — update protocol (auth)
+app.put('/api/seasons/:id/protocols/:pid', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const protocol = queryOne(
+    'SELECT * FROM protocols WHERE id = ? AND season_id = ?',
+    [req.params.pid, req.params.id]
+  );
+  if (!protocol) {
+    return res.status(404).json({ error: 'Протокол не найден' });
+  }
+
+  const { text, penalty_seconds, boosty_author } = req.body || {};
+  const updates = [];
+  const params = [];
+
+  if (text !== undefined) { updates.push('text = ?'); params.push(text); }
+  if (penalty_seconds !== undefined) { updates.push('penalty_seconds = ?'); params.push(penalty_seconds); }
+  if (boosty_author !== undefined) { updates.push('boosty_author = ?'); params.push(boosty_author || null); }
+
+  if (updates.length > 0) {
+    params.push(protocol.id);
+    run(`UPDATE protocols SET ${updates.join(', ')} WHERE id = ?`, params);
+    saveToDisk();
+  }
+
+  const updated = queryOne('SELECT * FROM protocols WHERE id = ?', [protocol.id]);
+  res.json({ protocol: updated });
+});
+
+// DELETE /api/seasons/:id/protocols/:pid — delete protocol (auth)
+app.delete('/api/seasons/:id/protocols/:pid', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const protocol = queryOne(
+    'SELECT * FROM protocols WHERE id = ? AND season_id = ?',
+    [req.params.pid, req.params.id]
+  );
+  if (!protocol) {
+    return res.status(404).json({ error: 'Протокол не найден' });
+  }
+
+  run('DELETE FROM protocols WHERE id = ?', [protocol.id]);
+  saveToDisk();
+  res.json({ ok: true });
+});
+
+// ── Legendary Contracts API ───────────────────────────────────
+
+// GET /api/seasons/:id/legendary — list legendary contracts with completion status
+app.get('/api/seasons/:id/legendary', (req, res) => {
+  const contracts = query(
+    "SELECT * FROM contracts WHERE season_id = ? AND is_legendary = 1 ORDER BY category, sort_order",
+    [req.params.id]
+  );
+  res.json({ legendary: contracts });
+});
+
+// POST /api/rounds/:rid/legendary/:cid — mark legendary contract as completed
+app.post('/api/rounds/:rid/legendary/:cid', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const roundResult = queryOne('SELECT * FROM round_results WHERE id = ?', [req.params.rid]);
+  if (!roundResult) {
+    return res.status(404).json({ error: 'Результат раунда не найден' });
+  }
+
+  // Verify tournament ownership via round_result → tournament
+  const tournament = queryOne('SELECT * FROM tournaments WHERE id = ?', [roundResult.tournament_id]);
+  if (!tournament || tournament.user_id !== user.id) {
+    return res.status(403).json({ error: 'Доступ запрещён' });
+  }
+
+  const contract = queryOne(
+    "SELECT * FROM contracts WHERE id = ? AND is_legendary = 1",
+    [req.params.cid]
+  );
+  if (!contract) {
+    return res.status(404).json({ error: 'Легендарный контракт не найден' });
+  }
+
+  if (contract.completed_by) {
+    return res.status(409).json({ error: 'Этот легендарный контракт уже выполнен' });
+  }
+
+  const { player_name } = req.body || {};
+  const now = new Date().toISOString();
+
+  run(
+    'UPDATE contracts SET completed_by = ?, completed_at = ? WHERE id = ?',
+    [player_name || 'Unknown', now, contract.id]
+  );
+
+  // Add 10 points to the round's participant
+  run(
+    'UPDATE round_results SET points_earned = points_earned + 10 WHERE id = ?',
+    [roundResult.id]
+  );
+
+  saveToDisk();
+
+  const updated = queryOne('SELECT * FROM contracts WHERE id = ?', [contract.id]);
+  const updatedRound = queryOne('SELECT * FROM round_results WHERE id = ?', [roundResult.id]);
+  console.log(`[api] legendary contract completed: "${updated.text}" by ${updated.completed_by}`);
+  res.json({ contract: updated, round: updatedRound });
+});
+
+// ── Round Contract/Protocol Assignment ────────────────────────
+
+// POST /api/tournaments/:id/rounds/:rid/contracts — assign random contracts
+app.post('/api/tournaments/:id/rounds/:rid/contracts', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+
+  const roundResult = queryOne(
+    'SELECT * FROM round_results WHERE id = ? AND tournament_id = ?',
+    [req.params.rid, owner.tournament.id]
+  );
+  if (!roundResult) {
+    return res.status(404).json({ error: 'Результат раунда не найден' });
+  }
+
+  const participant = queryOne(
+    'SELECT * FROM tournament_participants WHERE id = ?',
+    [roundResult.participant_id]
+  );
+
+  const seasonId = owner.tournament.season_id;
+  if (!seasonId) {
+    return res.status(400).json({ error: 'Турнир не привязан к сезону' });
+  }
+
+  // Determine which contract categories apply based on participant type
+  const playerType = (participant?.player_type || 'pvpve').toLowerCase();
+  let categories = ["'pve'", "'pvpve'"];
+  if (playerType === 'pvp') categories = ["'pvp'", "'pvpve'"];
+  else if (playerType === 'pve') categories = ["'pve'"];
+
+  // Get 2 random non-legendary contracts from the season pool
+  const pool = query(
+    `SELECT * FROM contracts 
+     WHERE season_id = ? AND is_legendary = 0 AND category IN (${categories.join(',')})
+     ORDER BY RANDOM() LIMIT 2`,
+    [seasonId]
+  );
+
+  if (pool.length === 0) {
+    return res.status(400).json({ error: 'Нет доступных контрактов в пуле сезона' });
+  }
+
+  // Remove any existing contract assignments for this round
+  run('DELETE FROM round_contracts WHERE round_result_id = ?', [roundResult.id]);
+
+  const assigned = [];
+  for (const c of pool) {
+    const rcid = randomUUID();
+    run(
+      `INSERT INTO round_contracts (id, round_result_id, contract_id, participant_id)
+       VALUES (?, ?, ?, ?)`,
+      [rcid, roundResult.id, c.id, roundResult.participant_id]
+    );
+    assigned.push({ ...c, assignment_id: rcid });
+  }
+
+  saveToDisk();
+  res.json({ assigned: pool, count: pool.length });
+});
+
+// POST /api/tournaments/:id/rounds/:rid/protocols — assign random protocol
+app.post('/api/tournaments/:id/rounds/:rid/protocols', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+
+  const roundResult = queryOne(
+    'SELECT * FROM round_results WHERE id = ? AND tournament_id = ?',
+    [req.params.rid, owner.tournament.id]
+  );
+  if (!roundResult) {
+    return res.status(404).json({ error: 'Результат раунда не найден' });
+  }
+
+  const seasonId = owner.tournament.season_id;
+  if (!seasonId) {
+    return res.status(400).json({ error: 'Турнир не привязан к сезону' });
+  }
+
+  // Get 1 random protocol — avoid repeats within the same tournament/round
+  const usedProtocolIds = query(
+    `SELECT rp.protocol_id FROM round_protocols rp
+     JOIN round_results rr ON rp.round_result_id = rr.id
+     WHERE rr.tournament_id = ?`,
+    [owner.tournament.id]
+  ).map(r => r.protocol_id);
+
+  let poolQuery = 'SELECT * FROM protocols WHERE season_id = ?';
+  const poolParams = [seasonId];
+  if (usedProtocolIds.length > 0) {
+    poolQuery += ` AND id NOT IN (${usedProtocolIds.map(() => '?').join(',')})`;
+    poolParams.push(...usedProtocolIds);
+  }
+  poolQuery += ' ORDER BY RANDOM() LIMIT 1';
+
+  const pool = query(poolQuery, poolParams);
+
+  if (pool.length === 0) {
+    return res.status(400).json({ error: 'Нет доступных протоколов (все уже использованы в этом турнире)' });
+  }
+
+  // Remove any existing protocol assignment for this round/participant
+  run(
+    'DELETE FROM round_protocols WHERE round_result_id = ? AND participant_id = ?',
+    [roundResult.id, roundResult.participant_id]
+  );
+
+  const rpid = randomUUID();
+  run(
+    `INSERT INTO round_protocols (id, round_result_id, protocol_id, participant_id)
+     VALUES (?, ?, ?, ?)`,
+    [rpid, roundResult.id, pool[0].id, roundResult.participant_id]
+  );
+
+  saveToDisk();
+  res.json({ protocol: pool[0], assignment_id: rpid });
+});
+
+// ── Round Contracts/Protocols Status ──────────────────────────
+
+// PUT /api/round-contracts/:id — update contract completion status
+app.put('/api/round-contracts/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const rc = queryOne('SELECT * FROM round_contracts WHERE id = ?', [req.params.id]);
+  if (!rc) {
+    return res.status(404).json({ error: 'Назначение контракта не найдено' });
+  }
+
+  // Verify ownership via round_result → tournament
+  const rr = queryOne('SELECT * FROM round_results WHERE id = ?', [rc.round_result_id]);
+  const tournament = queryOne('SELECT * FROM tournaments WHERE id = ?', [rr.tournament_id]);
+  if (!tournament || tournament.user_id !== user.id) {
+    return res.status(403).json({ error: 'Доступ запрещён' });
+  }
+
+  const { completed, completed_by_opponent } = req.body || {};
+
+  const updates = [];
+  const params = [];
+  if (completed !== undefined) { updates.push('completed = ?'); params.push(completed ? 1 : 0); }
+  if (completed_by_opponent !== undefined) { updates.push('completed_by_opponent = ?'); params.push(completed_by_opponent ? 1 : 0); }
+
+  // Calculate points: 2 for own, 1 for opponent's
+  const ownPoints = completed ? 2 : 0;
+  const oppPoints = completed_by_opponent ? 1 : 0;
+  updates.push('points_earned = ?');
+  params.push(ownPoints + oppPoints);
+
+  if (updates.length > 0) {
+    params.push(rc.id);
+    run(`UPDATE round_contracts SET ${updates.join(', ')} WHERE id = ?`, params);
+    saveToDisk();
+  }
+
+  const updated = queryOne('SELECT * FROM round_contracts WHERE id = ?', [rc.id]);
+  res.json({ assignment: updated });
+});
+
+// PUT /api/round-protocols/:id — update protocol violation status
+app.put('/api/round-protocols/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const rp = queryOne('SELECT * FROM round_protocols WHERE id = ?', [req.params.id]);
+  if (!rp) {
+    return res.status(404).json({ error: 'Назначение протокола не найдено' });
+  }
+
+  const rr = queryOne('SELECT * FROM round_results WHERE id = ?', [rp.round_result_id]);
+  const tournament = queryOne('SELECT * FROM tournaments WHERE id = ?', [rr.tournament_id]);
+  if (!tournament || tournament.user_id !== user.id) {
+    return res.status(403).json({ error: 'Доступ запрещён' });
+  }
+
+  const { violated } = req.body || {};
+  run('UPDATE round_protocols SET violated = ? WHERE id = ?', [violated ? 1 : 0, rp.id]);
+  saveToDisk();
+
+  const updated = queryOne('SELECT * FROM round_protocols WHERE id = ?', [rp.id]);
+  res.json({ assignment: updated });
+});
+
+// GET /api/tournaments/:id/rounds/:rid/assignments — all contracts and protocols for a round
+app.get('/api/tournaments/:id/rounds/:rid/assignments', (req, res) => {
+  const roundResult = queryOne(
+    'SELECT * FROM round_results WHERE id = ? AND tournament_id = ?',
+    [req.params.rid, req.params.id]
+  );
+  if (!roundResult) {
+    return res.status(404).json({ error: 'Результат раунда не найден' });
+  }
+
+  const contracts = query(
+    `SELECT rc.*, c.text as contract_text, c.category, c.points as contract_points
+     FROM round_contracts rc
+     JOIN contracts c ON rc.contract_id = c.id
+     WHERE rc.round_result_id = ?
+     ORDER BY c.sort_order`,
+    [roundResult.id]
+  );
+
+  const protocols = query(
+    `SELECT rp.*, p.text as protocol_text, p.penalty_seconds
+     FROM round_protocols rp
+     JOIN protocols p ON rp.protocol_id = p.id
+     WHERE rp.round_result_id = ?
+     ORDER BY p.sort_order`,
+    [roundResult.id]
+  );
+
+  res.json({ contracts, protocols });
+});
+
+// ── Public Season Pages ───────────────────────────────────────
+
+// GET /api/seasons/:id/matches — match history for a season
+app.get('/api/seasons/:id/matches', (req, res) => {
+  const { mode } = req.query;
+
+  let sql = `
+    SELECT t.id, t.name, t.mode, t.completed_at, t.total_rounds,
+           u.display_name as organizer_name
+    FROM tournaments t
+    JOIN users u ON t.user_id = u.id
+    WHERE t.season_id = ? AND t.status = 'completed'`;
+  const params = [req.params.id];
+
+  if (mode === '1x1' || mode === '2x2') {
+    sql += ' AND t.mode = ?';
+    params.push(mode);
+  }
+  sql += ' ORDER BY t.completed_at DESC';
+
+  const matches = query(sql, params);
+
+  // Enrich with winner info
+  for (const m of matches) {
+    const winner = queryOne(
+      `SELECT tp.name, ts.total_points
+       FROM tournament_standings ts
+       JOIN tournament_participants tp ON ts.participant_id = tp.id
+       WHERE ts.tournament_id = ? AND ts.rank = 1`,
+      [m.id]
+    );
+    m.winner = winner || null;
+
+    const participantCount = queryOne(
+      'SELECT COUNT(*) as count FROM tournament_participants WHERE tournament_id = ?',
+      [m.id]
+    );
+    m.participants_count = participantCount?.count || 0;
+  }
+
+  res.json({ matches });
+});
+
+// GET /api/seasons/:id/teams — 2x2 team rosters for a season
+app.get('/api/seasons/:id/teams', (req, res) => {
+  const teams = query(
+    `SELECT tp.id, tp.name, t.name as tournament_name, t.id as tournament_id
+     FROM tournament_participants tp
+     JOIN tournaments t ON tp.tournament_id = t.id
+     WHERE t.season_id = ? AND tp.type = 'team'
+     ORDER BY t.completed_at DESC, tp.sort_order`,
+    [req.params.id]
+  );
+
+  // Enrich with members
+  for (const team of teams) {
+    team.members = query(
+      'SELECT player_name as name FROM participant_members WHERE participant_id = ? ORDER BY sort_order',
+      [team.id]
+    );
+    // Get their standings
+    const standing = queryOne(
+      `SELECT total_points, rank FROM tournament_standings 
+       WHERE tournament_id = ? AND participant_id = ?`,
+      [team.tournament_id, team.id]
+    );
+    team.total_points = standing?.total_points || 0;
+    team.rank = standing?.rank || null;
+  }
+
+  res.json({ teams });
+});
+
+// GET /api/seasons/:id/ratings/1x1 — 1x1 ratings for a season
+app.get('/api/seasons/:id/ratings/1x1', (req, res) => {
+  const ratings = computeSeasonRatings(req.params.id, '1x1');
+  res.json({ ratings, mode: '1x1' });
+});
+
+// GET /api/seasons/:id/ratings/2x2 — 2x2 ratings for a season
+app.get('/api/seasons/:id/ratings/2x2', (req, res) => {
+  const ratings = computeSeasonRatings(req.params.id, '2x2');
+  res.json({ ratings, mode: '2x2' });
+});
+
+function computeSeasonRatings(seasonId, mode) {
+  // Aggregate all completed tournament standings for the season and mode
+  const rows = query(
+    `SELECT 
+       tp.id as participant_id,
+       tp.name as participant_name,
+       tp.type as participant_type,
+       COUNT(ts.tournament_id) as tournaments_played,
+       SUM(CASE WHEN ts.rank = 1 THEN 1 ELSE 0 END) as wins,
+       SUM(CASE WHEN ts.rank > 1 THEN 1 ELSE 0 END) as losses,
+       SUM(ts.total_points) as total_points,
+       MAX(ts.total_points) as best_score
+     FROM tournament_standings ts
+     JOIN tournament_participants tp ON ts.participant_id = tp.id
+     JOIN tournaments t ON ts.tournament_id = t.id
+     WHERE t.season_id = ? AND t.mode = ? AND t.status = 'completed'
+     GROUP BY tp.id, tp.name
+     ORDER BY total_points DESC`,
+    [seasonId, mode]
+  );
+
+  // Compute MMR: base 1000 + points × 3 + wins × 15 − losses × 5
+  return rows.map((r, i) => ({
+    rank: i + 1,
+    participant_name: r.participant_name,
+    participant_type: r.participant_type,
+    tournaments_played: r.tournaments_played,
+    wins: r.wins,
+    losses: r.losses,
+    total_points: r.total_points,
+    best_score: r.best_score,
+    mmr: 1000 + r.total_points * 3 + r.wins * 15 - r.losses * 5,
+  }));
+}
 
 // ── Serve static files from dist/ ────────────────────────────
 

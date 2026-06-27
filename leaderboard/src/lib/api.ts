@@ -5,6 +5,13 @@ import type {
   LeaderboardEntry,
   StandingEntry,
   TournamentDetail,
+  Season,
+  SeasonDetail,
+  Contract,
+  Protocol,
+  MatchEntry,
+  TeamRoster,
+  SeasonRating,
   PlayerStats,
 } from './types';
 import { computeMmr } from './utils';
@@ -27,7 +34,6 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 
     return res.json();
   } catch (error) {
-    // Graceful degradation during build when API is not available
     if (process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE === 'phase-production-build') {
       console.warn(`[API] Fetch failed for ${path} (build-time, API unavailable):`, (error as Error).message);
     }
@@ -35,7 +41,6 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   }
 }
 
-// Safe fetch that returns empty data on failure (for build-time resilience)
 async function fetchAPISafe<T>(path: string, fallback: T, options?: RequestInit): Promise<T> {
   try {
     return await fetchAPI<T>(path, options);
@@ -48,10 +53,12 @@ async function fetchAPISafe<T>(path: string, fallback: T, options?: RequestInit)
 
 export async function getGlobalLeaderboard(
   limit = 100,
-  mode?: string
+  mode?: string,
+  seasonId?: string
 ): Promise<StandingEntry[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (mode && mode !== 'all') params.set('mode', mode);
+  if (seasonId) params.set('season_id', seasonId);
 
   const data = await fetchAPISafe<{ leaderboard: LeaderboardEntry[] }>(
     `/api/leaderboard?${params}`,
@@ -77,9 +84,12 @@ export async function getTournamentStandings(
 
 // ── Tournaments ────────────────────────────────────────────
 
-export async function getTournaments(): Promise<TournamentDetail[]> {
+export async function getTournaments(
+  seasonId?: string
+): Promise<TournamentDetail[]> {
+  const params = seasonId ? `?season_id=${seasonId}` : '';
   const data = await fetchAPISafe<{ tournaments: TournamentDetail[] }>(
-    '/api/tournaments',
+    `/api/tournaments${params}`,
     { tournaments: [] }
   );
   return data.tournaments ?? [];
@@ -93,6 +103,100 @@ export async function getTournament(
   } catch {
     return null;
   }
+}
+
+// ── Seasons ────────────────────────────────────────────────
+
+export async function getSeasons(): Promise<Season[]> {
+  const data = await fetchAPISafe<{ seasons: Season[] }>(
+    '/api/seasons',
+    { seasons: [] }
+  );
+  return data.seasons ?? [];
+}
+
+export async function getSeason(id: string): Promise<SeasonDetail | null> {
+  try {
+    return await fetchAPI<SeasonDetail>(`/api/seasons/${id}`);
+  } catch {
+    return null;
+  }
+}
+
+// ── Contracts ──────────────────────────────────────────────
+
+export async function getContracts(
+  seasonId: string,
+  category?: string,
+  legendary?: boolean
+): Promise<Contract[]> {
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (legendary !== undefined) params.set('legendary', legendary ? '1' : '0');
+
+  const qs = params.toString();
+  const data = await fetchAPISafe<{ contracts: Contract[] }>(
+    `/api/seasons/${seasonId}/contracts${qs ? `?${qs}` : ''}`,
+    { contracts: [] }
+  );
+  return data.contracts ?? [];
+}
+
+export async function getLegendaryContracts(
+  seasonId: string
+): Promise<Contract[]> {
+  const data = await fetchAPISafe<{ legendary: Contract[] }>(
+    `/api/seasons/${seasonId}/legendary`,
+    { legendary: [] }
+  );
+  return data.legendary ?? [];
+}
+
+// ── Protocols ──────────────────────────────────────────────
+
+export async function getProtocols(seasonId: string): Promise<Protocol[]> {
+  const data = await fetchAPISafe<{ protocols: Protocol[] }>(
+    `/api/seasons/${seasonId}/protocols`,
+    { protocols: [] }
+  );
+  return data.protocols ?? [];
+}
+
+// ── Matches ────────────────────────────────────────────────
+
+export async function getMatches(
+  seasonId: string,
+  mode?: string
+): Promise<MatchEntry[]> {
+  const params = mode ? `?mode=${mode}` : '';
+  const data = await fetchAPISafe<{ matches: MatchEntry[] }>(
+    `/api/seasons/${seasonId}/matches${params}`,
+    { matches: [] }
+  );
+  return data.matches ?? [];
+}
+
+// ── Teams ──────────────────────────────────────────────────
+
+export async function getTeams(seasonId: string): Promise<TeamRoster[]> {
+  const data = await fetchAPISafe<{ teams: TeamRoster[] }>(
+    `/api/seasons/${seasonId}/teams`,
+    { teams: [] }
+  );
+  return data.teams ?? [];
+}
+
+// ── Ratings ────────────────────────────────────────────────
+
+export async function getRatings(
+  seasonId: string,
+  mode: '1x1' | '2x2'
+): Promise<SeasonRating[]> {
+  const data = await fetchAPISafe<{ ratings: SeasonRating[] }>(
+    `/api/seasons/${seasonId}/ratings/${mode}`,
+    { ratings: [] }
+  );
+  return data.ratings ?? [];
 }
 
 // ── Player Profile ─────────────────────────────────────────
@@ -109,10 +213,6 @@ export async function getPlayerStats(
 
 // ── Helpers ────────────────────────────────────────────────
 
-/**
- * Enrich raw API entries with computed MMR, wins, losses.
- * Falls back to total_points as MMR when no dedicated stats exist.
- */
 function enrichStandings(entries: LeaderboardEntry[]): StandingEntry[] {
   return entries.map((entry, i) => {
     const raw = entry as LeaderboardEntry & {
