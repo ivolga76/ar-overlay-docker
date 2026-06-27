@@ -332,7 +332,10 @@ export default function AdminOverlayTab({
             >
               {spinning ? spinningText : 'Рулетка'}
             </button>
-            <button type="button" onClick={() => setActiveTab('templates')}>
+            <button
+              type="button"
+              onClick={() => setActiveTab(isSeason2 ? 'contracts' : 'templates')}
+            >
               Добавить
             </button>
             {contractsLoaded && contractRoulettePool.length > 0 && (
