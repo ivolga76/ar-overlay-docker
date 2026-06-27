@@ -4,15 +4,19 @@
 import Link from 'next/link';
 import { RainbowStripe } from '@/components/RainbowStripe';
 import { FeatureCard } from '@/components/FeatureCard';
-import { getTournaments } from '@/lib/api';
+import { getTournaments, getSeasons } from '@/lib/api';
 
 export const dynamic = 'force-static';
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  const tournaments = await getTournaments();
+  const [tournaments, seasons] = await Promise.all([
+    getTournaments(),
+    getSeasons(),
+  ]);
   const completed = tournaments.filter((t) => t.status === 'completed');
   const activeCount = tournaments.filter((t) => t.status === 'active').length;
+  const activeSeasons = seasons.filter((s) => s.status === 'active');
 
   return (
     <main className="flex-1">
@@ -111,6 +115,28 @@ export default async function HomePage() {
           />
         </div>
       </section>
+
+      {/* ════════════ Seasons ════════════ */}
+      {activeSeasons.length > 0 && (
+        <section className="max-w-4xl mx-auto px-4 pb-16">
+          <div className="flex items-center gap-3 mb-8">
+            <hr className="neon-divider flex-1" />
+            <h2 className="heading-section flex-shrink-0">Сезоны</h2>
+            <hr className="neon-divider flex-1" />
+          </div>
+          <div className="feature-grid">
+            {activeSeasons.map((s) => (
+              <Link key={s.id} href={`/season/${s.id}`}>
+                <FeatureCard
+                  icon={s.id === 'season-2' ? '🆕' : '📅'}
+                  title={s.name}
+                  description={s.description || 'Турнирный сезон'}
+                />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ════════════ Tournament Cards (horizontal scroll carousel) ════════════ */}
       {completed.length > 0 && (

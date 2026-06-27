@@ -43,7 +43,7 @@ export default async function TournamentStandingsPage({ params }: Props) {
     <main className="flex-1">
       <PageHeader
         title={tournament.name}
-        subtitle={`Режим: ${tournament.mode === '1x1' ? '1×1' : '2×2'} · Раундов: ${tournament.total_rounds}${tournament.completed_at ? ` · Завершён: ${formatDate(tournament.completed_at)}` : ''}`}
+        subtitle={`Режим: ${tournament.mode === '1x1' ? '1×1' : '2×2'} · Раундов: ${tournament.total_rounds}${tournament.season_name ? ` · ${tournament.season_name}` : ''}${tournament.completed_at ? ` · Завершён: ${formatDate(tournament.completed_at)}` : ''}`}
         backHref="/standings"
         backLabel="К общему рейтингу"
       />
