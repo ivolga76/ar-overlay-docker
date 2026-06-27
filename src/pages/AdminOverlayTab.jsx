@@ -36,6 +36,7 @@ export default function AdminOverlayTab({
   setActiveTab,
   handleExport,
   handleImport,
+  spinRoulette,
 }) {
   const [playerName, setPlayerName] = useState('');
   const [teamName, setTeamName] = useState('');
@@ -320,6 +321,20 @@ export default function AdminOverlayTab({
         <section className="admin-card tech-panel timer-card">
           <p className="eyebrow">Таймер</p>
           <Timer />
+        </section>
+
+        <section className="admin-card tech-panel">
+          <p className="eyebrow">Рулетка (виджет оверлея)</p>
+          <button
+            type="button"
+            className="roulette-btn"
+            onClick={spinRoulette}
+            disabled={state.tasks.length === 0}
+            title={state.tasks.length === 0 ? 'Нет задач для рулетки' : 'Запустить рулетку в оверлее'}
+            style={{ width: '100%', padding: '12px', fontSize: 16, marginTop: 8 }}
+          >
+            🎰 Крутить
+          </button>
         </section>
       </div>
 

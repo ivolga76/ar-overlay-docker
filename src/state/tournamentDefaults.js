@@ -66,6 +66,7 @@ export function createDefaultState() {
       complications: defaultComplications,
     },
     overlayLayout: createDefaultLayout(),
+    rouletteData: null,
     auditLog: [],
     updatedAt: Date.now(),
   };

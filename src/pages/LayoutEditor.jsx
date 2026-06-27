@@ -11,6 +11,7 @@ const WIDGET_LABELS = {
   'previous-player': 'Пред. игрок',
   'standings': 'Версус',
   'complications': 'Усложнения',
+  'roulette': 'Рулетка',
 };
 
 export default function LayoutEditor() {
@@ -229,10 +230,11 @@ export default function LayoutEditor() {
     showStandings: state.showStandings,
     standings,
     complications: state.extensions?.complications || [],
+    rouletteData: state.rouletteData,
   }), [
     state.tournamentName, state.currentRound, state.totalRounds,
     currentParticipant, state.tasks, previousParticipant,
-    state.showStandings, standings, state.extensions?.complications,
+    state.showStandings, standings, state.extensions?.complications, state.rouletteData,
   ]);
 
   const widgets = useMemo(() =>
@@ -503,6 +505,70 @@ function StandingsPreview({ data, fs }) {
   );
 }
 
+function RoulettePreview({ data, fs, ns }) {
+  const rd = data.rouletteData;
+  const items = rd?.items || data.tasks || [];
+  const sectorAngle = items.length > 0 ? 360 / items.length : 60;
+  const dim = 340;
+  const r = dim / 2 - 10;
+  const cx = dim / 2;
+  const cy = dim / 2;
+  // Arrow on the right
+  const arrowX = dim + 4;
+  const arrowY = cy;
+
+  // Generate sector colors
+  const colors = ['#ff4d6a', '#ffb347', '#4ecdc4', '#7b68ee', '#ff6b9d', '#c9a0dc', '#48c9b0', '#f4d03f'];
+
+  const sectors = items.map((item, i) => {
+    const startAngle = i * sectorAngle;
+    const endAngle = (i + 1) * sectorAngle;
+    const startRad = (startAngle - 90) * Math.PI / 180;
+    const endRad = (endAngle - 90) * Math.PI / 180;
+    const x1 = cx + r * Math.cos(startRad);
+    const y1 = cy + r * Math.sin(startRad);
+    const x2 = cx + r * Math.cos(endRad);
+    const y2 = cy + r * Math.sin(endRad);
+    const largeArc = sectorAngle > 180 ? 1 : 0;
+    const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+    // Text position: middle of sector, 60% from center
+    const midAngle = (startAngle + endAngle) / 2 - 90;
+    const midRad = midAngle * Math.PI / 180;
+    const tx = cx + r * 0.6 * Math.cos(midRad);
+    const ty = cy + r * 0.6 * Math.sin(midRad);
+    return { d, color: colors[i % colors.length], tx, ty, text: item.text };
+  });
+
+  const angle = rd?.spinning ? rd.targetAngle : 0;
+
+  return (
+    <div className="overlay-widget-inner" style={{ display: 'flex', alignItems: 'center' }}>
+      <svg width={dim + 30} height={dim} viewBox={`0 0 ${dim + 30} ${dim}`}>
+        <g transform={`rotate(${angle}, ${cx}, ${cy})`} style={{ transition: 'transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99)' }}>
+          {sectors.map((s, i) => (
+            <g key={i}>
+              <path d={s.d} fill={s.color} stroke="rgba(0,0,0,0.3)" strokeWidth="1" />
+              <text x={s.tx} y={s.ty} textAnchor="middle" dominantBaseline="central"
+                fill="#fff" fontSize={fs ? fs(9) : 9} fontWeight="600"
+                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}>
+                {s.text.length > 14 ? s.text.slice(0, 12) + '…' : s.text}
+              </text>
+            </g>
+          ))}
+          <circle cx={cx} cy={cy} r={r * 0.12} fill="#1a1a2e" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+        </g>
+        {/* Arrow pointer — fixed on the right */}
+        <polygon
+          points={`${arrowX - 16},${arrowY - 10} ${arrowX},${arrowY} ${arrowX - 16},${arrowY + 10}`}
+          fill="var(--cyan)"
+          stroke="rgba(255,255,255,0.5)"
+          strokeWidth="1"
+        />
+      </svg>
+    </div>
+  );
+}
+
 function ComplicationsPreview({ data, fs }) {
   const comps = data.complications || [];
   if (!comps.length) {
@@ -538,6 +604,7 @@ const PREVIEW_COMPONENTS = {
   'previous-player': PreviousPlayerPreview,
   'standings': StandingsPreview,
   'complications': ComplicationsPreview,
+  'roulette': RoulettePreview,
 };
 
 const MIN_WIDGET_WIDTH = 60; // px in overlay coords (@1920)
@@ -585,8 +652,8 @@ function renderWidgets(layout, overlayData, scaleFactor, handleMouseDown, select
 
     const Preview = PREVIEW_COMPONENTS[widget.type];
 
-    // Timer is the only widget with fixed size (SVG)
-    const isFixedSize = widget.type === 'timer';
+    // Timer and Roulette are fixed size (SVG)
+    const isFixedSize = widget.type === 'timer' || widget.type === 'roulette';
 
     // Resize handle thickness in scaled px
     const handleW = Math.max(4, Math.round(6 * scaleFactor));

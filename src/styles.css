@@ -2306,6 +2306,16 @@ textarea:focus {
   letter-spacing: 1px;
 }
 
+/* ── Roulette widget ────────────────────────────────────────── */
+
+.roulette-wheel {
+  filter: drop-shadow(0 0 12px rgba(114, 217, 255, 0.25));
+}
+
+.roulette-arrow {
+  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.6));
+}
+
 /* ── Auth page ─────────────────────────────────────────────── */
 
 .auth-page {
