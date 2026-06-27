@@ -70,6 +70,7 @@ function normalizeState(rawState) {
       ...(rawState.extensions || {}),
     },
     rouletteData: rawState.rouletteData || fallback.rouletteData || null,
+    rouletteItems: Array.isArray(rawState.rouletteItems) ? rawState.rouletteItems : [],
   };
 }
 
@@ -283,6 +284,13 @@ export function TournamentProvider({ children, overlayUserId = null }) {
           spinning: true,
           spinId: msg.spinId,
         },
+      }));
+    });
+    on('setRouletteItems', (msg) => {
+      syncingFromServer.current = true;
+      setState((current) => ({
+        ...current,
+        rouletteItems: Array.isArray(msg.items) ? msg.items : [],
       }));
     });
   }, [on]);
@@ -752,8 +760,15 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     setState((current) => touch({ ...current, timerData: { ...current.timerData, ...data } }));
   }, []);
 
+  const setRouletteItems = useCallback((items) => {
+    setState((current) => touch({ ...current, rouletteItems: items }));
+    if (connected) {
+      send({ type: 'setRouletteItems', items });
+    }
+  }, [connected, send]);
+
   const spinRoulette = useCallback(() => {
-    const items = state.tasks;
+    const items = (state.rouletteItems && state.rouletteItems.length > 0) ? state.rouletteItems : state.tasks;
     if (!items.length) return;
     const resultIndex = Math.floor(Math.random() * items.length);
     const sectorAngle = 360 / items.length;
@@ -767,7 +782,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     if (connected) {
       send({ type: 'spinRoulette', ...data });
     }
-  }, [state.tasks, connected, send]);
+  }, [state.tasks, state.rouletteItems, connected, send]);
 
   // Memoize standings separately — prevents cascade re-renders on timer ticks
   const standings = useMemo(() => {
@@ -818,6 +833,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
       removeComplication,
       setTimerData,
       spinRoulette,
+      setRouletteItems,
     };
   }, [
     state,
@@ -850,6 +866,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     removeComplication,
     setTimerData,
     spinRoulette,
+    setRouletteItems,
   ]);
 
   return <TournamentContext.Provider value={value}>{children}</TournamentContext.Provider>;

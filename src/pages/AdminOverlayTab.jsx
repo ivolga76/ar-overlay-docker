@@ -37,6 +37,7 @@ export default function AdminOverlayTab({
   handleExport,
   handleImport,
   spinRoulette,
+  setRouletteItems,
 }) {
   const [playerName, setPlayerName] = useState('');
   const [teamName, setTeamName] = useState('');
@@ -325,16 +326,54 @@ export default function AdminOverlayTab({
 
         <section className="admin-card tech-panel">
           <p className="eyebrow">Рулетка (виджет оверлея)</p>
-          <button
-            type="button"
-            className="roulette-btn"
-            onClick={spinRoulette}
-            disabled={state.tasks.length === 0}
-            title={state.tasks.length === 0 ? 'Нет задач для рулетки' : 'Запустить рулетку в оверлее'}
-            style={{ width: '100%', padding: '12px', fontSize: 16, marginTop: 8 }}
-          >
-            🎰 Крутить
-          </button>
+          <div className="button-pair" style={{ marginTop: 8 }}>
+            {isSeason2 && contractPool.length > 0 && (
+              <button
+                type="button"
+                className="roulette-btn"
+                onClick={() => setRouletteItems(contractPool)}
+                title="Загрузить все контракты в рулетку"
+                style={{ background: 'rgba(255,0,128,0.1)', borderColor: 'var(--magenta)' }}
+              >
+                📋 Контракты
+              </button>
+            )}
+            {!isSeason2 && roulettePool.length > 0 && (
+              <button
+                type="button"
+                className="roulette-btn"
+                onClick={() => setRouletteItems(roulettePool)}
+                title="Загрузить все задания в рулетку"
+              >
+                📋 Задания
+              </button>
+            )}
+            <button
+              type="button"
+              className="roulette-btn"
+              onClick={spinRoulette}
+              disabled={(!state.rouletteItems || state.rouletteItems.length === 0) && state.tasks.length === 0}
+              title={((!state.rouletteItems || state.rouletteItems.length === 0) && state.tasks.length === 0) ? 'Нет пунктов для рулетки' : 'Запустить рулетку в оверлее'}
+              style={{ flex: 1, padding: '12px', fontSize: 16 }}
+            >
+              🎰 Крутить
+            </button>
+            {state.rouletteItems && state.rouletteItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setRouletteItems([])}
+                title="Очистить рулетку"
+                style={{ padding: '12px 10px', fontSize: 14 }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {state.rouletteItems && state.rouletteItems.length > 0 && (
+            <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 12 }}>
+              В рулетке: {state.rouletteItems.length} пункт(ов)
+            </div>
+          )}
         </section>
       </div>
 

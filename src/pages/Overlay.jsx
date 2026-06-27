@@ -154,7 +154,9 @@ const Standings = memo(function Standings({ data }) {
 const Roulette = memo(function Roulette({ data }) {
   const { state: st } = useTournament()
   const rd = st.rouletteData
-  const items = rd?.items || data.tasks || []
+  // Prefer spinning items > rouletteItems (loaded via filter button) > tasks (backward compat)
+  const rouletteItems = st.rouletteItems
+  const items = rd?.items || (rouletteItems && rouletteItems.length > 0 ? rouletteItems : data.tasks) || []
   const sectorAngle = items.length > 0 ? 360 / items.length : 60
 
   // Animation state
@@ -273,7 +275,7 @@ const Roulette = memo(function Roulette({ data }) {
     return (
       <div className="overlay-widget-inner">
         <div className="overlay-tasks-header">Рулетка</div>
-        <div style={{ color: 'var(--muted)', fontSize: 13 }}>Нет задач для розыгрыша</div>
+        <div style={{ color: 'var(--muted)', fontSize: 13 }}>Нажми «Контракты» или «Задания» в админке, чтобы загрузить пункты</div>
       </div>
     )
   }
