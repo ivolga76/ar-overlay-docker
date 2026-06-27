@@ -43,12 +43,23 @@ export default function AdminOverlayTab({
   const [teamSecond, setTeamSecond] = useState('');
   const [pointsDraft, setPointsDraft] = useState(String(state.currentPoints ?? 0));
 
-  // Roulette: available templates not yet added to the round
+  // Season-aware labels (must be before roulettePool)
+  const currentSeasonId = getStoredSeasonId();
+  const isSeason2 = currentSeasonId === 'season-2';
+  const taskLabel = isSeason2 ? 'Контракты' : 'Задачи';
+  const taskLabelSingular = isSeason2 ? 'контракт' : 'задание';
+
+  // Roulette: season 2 uses contracts, season 1 uses task templates
   const roulettePool = useMemo(() => {
+    if (isSeason2) {
+      if (!contractsLoaded) return [];
+      const usedTexts = new Set(state.tasks.map((t) => t.text.trim()));
+      return contractPool.filter((c) => !usedTexts.has(c.text.trim()));
+    }
     const allTemplates = getTemplates().tasks;
     const usedTexts = new Set(state.tasks.map((t) => t.text.trim()));
     return allTemplates.filter((tpl) => !usedTexts.has(tpl.text));
-  }, [state.tasks]);
+  }, [state.tasks, isSeason2, contractsLoaded, contractPool]);
 
   const [spinning, setSpinning] = useState(false);
   const [spinningText, setSpinningText] = useState('');
@@ -115,12 +126,6 @@ export default function AdminOverlayTab({
     }
     cycle();
   }
-
-  // Season-aware labels
-  const currentSeasonId = getStoredSeasonId();
-  const isSeason2 = currentSeasonId === 'season-2';
-  const taskLabel = isSeason2 ? 'Контракты' : 'Задачи';
-  const taskLabelSingular = isSeason2 ? 'контракт' : 'задание';
 
   function handleComplicationRoulette() {
     if (complicationRoulettePool.length === 0 || spinningComp) return;
@@ -328,7 +333,7 @@ export default function AdminOverlayTab({
               className={`roulette-btn${spinning ? ' spinning' : ''}`}
               onClick={handleRoulette}
               disabled={roulettePool.length === 0 || spinning}
-              title={roulettePool.length === 0 ? 'Все шаблоны уже добавлены' : spinning ? 'Подбор задания…' : 'Добавить случайное задание из шаблонов'}
+              title={roulettePool.length === 0 ? (isSeason2 ? 'Все контракты уже добавлены' : 'Все шаблоны уже добавлены') : spinning ? (isSeason2 ? 'Подбор контракта…' : 'Подбор задания…') : (isSeason2 ? 'Добавить случайный контракт из пула сезона' : 'Добавить случайное задание из шаблонов')}
             >
               {spinning ? spinningText : 'Рулетка'}
             </button>
@@ -338,7 +343,7 @@ export default function AdminOverlayTab({
             >
               Добавить
             </button>
-            {contractsLoaded && contractRoulettePool.length > 0 && (
+            {!isSeason2 && contractsLoaded && contractRoulettePool.length > 0 && (
               <button
                 type="button"
                 className={`roulette-btn${spinningContract ? ' spinning' : ''}`}
