@@ -58,7 +58,8 @@ export interface Season {
   ended_at: string | null;
 }
 
-export interface SeasonDetail extends Season {
+export interface SeasonDetail {
+  season: Season;
   stats: {
     tournaments_total: number;
     tournaments_completed: number;
