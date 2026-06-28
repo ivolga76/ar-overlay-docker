@@ -31,11 +31,16 @@ export default async function PlayerPage({
 
   if (!stats) notFound();
 
-  const mmr = formatMmr(stats.currentMmr);
-  const peakMmr = formatMmr(stats.peakMmr);
+  const currentMmr = stats.currentMmr ?? 1000;
+  const peakMmr = stats.peakMmr ?? 1000;
+  const totalWins = stats.totalWins ?? 0;
+  const totalLosses = stats.totalLosses ?? 0;
+
+  const mmr = formatMmr(currentMmr);
+  const peak = formatMmr(peakMmr);
   const winRate =
-    stats.totalWins + stats.totalLosses > 0
-      ? Math.round((stats.totalWins / (stats.totalWins + stats.totalLosses)) * 100)
+    totalWins + totalLosses > 0
+      ? Math.round((totalWins / (totalWins + totalLosses)) * 100)
       : 0;
 
   return (
@@ -51,14 +56,18 @@ export default async function PlayerPage({
       <section className="max-w-4xl mx-auto px-4 pb-10">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Текущий MMR" value={mmr.value} colorClass={mmr.colorClass} />
-          <StatCard label="Пиковый MMR" value={peakMmr.value} colorClass={peakMmr.colorClass} />
-          <StatCard label="Побед / Поражений" value={`${stats.totalWins}W / ${stats.totalLosses}L`} colorClass="text-text-primary" />
+          <StatCard label="Пиковый MMR" value={peak.value} colorClass={peak.colorClass} />
+          <StatCard label="Побед / Поражений" value={`${totalWins}W / ${totalLosses}L`} colorClass="text-text-primary" />
           <StatCard label="Win Rate" value={`${winRate}%`} colorClass={winRate >= 50 ? 'text-accent-cyan' : 'text-danger'} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <StatCard label="Всего турниров" value={String(stats.totalTournaments)} colorClass="text-text-primary" />
-          <StatCard label="Лучший результат" value={stats.history.length > 0 ? `#${Math.min(...stats.history.map((h) => h.rank))}` : '—'} colorClass="text-accent-gold" />
+          <StatCard label="Всего турниров" value={String(stats.totalTournaments ?? 0)} colorClass="text-text-primary" />
+          <StatCard
+            label="Лучший результат"
+            value={stats.history && stats.history.length > 0 ? `#${Math.min(...stats.history.map((h) => h.rank))}` : '—'}
+            colorClass="text-accent-gold"
+          />
         </div>
       </section>
 
@@ -70,7 +79,7 @@ export default async function PlayerPage({
           <hr className="neon-divider flex-1" />
         </div>
 
-        {stats.history.length === 0 ? (
+        {!stats.history || stats.history.length === 0 ? (
           <DarkPanel className="text-center py-12">
             <p className="text-text-muted">Нет завершённых турниров.</p>
           </DarkPanel>
@@ -89,7 +98,10 @@ export default async function PlayerPage({
               </thead>
               <tbody>
                 {stats.history.map((entry) => {
-                  const hMmr = formatMmr(entry.mmr);
+                  const entryMmr = entry.mmr ?? 0;
+                  const entryWins = entry.wins ?? 0;
+                  const entryLosses = entry.losses ?? 0;
+                  const hMmr = formatMmr(entryMmr);
                   return (
                     <tr
                       key={entry.tournamentId}
@@ -120,12 +132,12 @@ export default async function PlayerPage({
                         {hMmr.value}
                       </td>
                       <td className="py-3 px-4 text-right mono-stat text-sm">
-                        <span className="text-success">{entry.wins}W</span>
+                        <span className="text-success">{entryWins}W</span>
                         <span className="text-text-muted mx-1">/</span>
-                        <span className="text-danger">{entry.losses}L</span>
+                        <span className="text-danger">{entryLosses}L</span>
                       </td>
                       <td className="py-3 px-4 text-right text-xs text-text-muted">
-                        {formatDate(entry.completedAt)}
+                        {formatDate(entry.completedAt ?? null)}
                       </td>
                     </tr>
                   );

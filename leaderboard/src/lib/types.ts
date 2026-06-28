@@ -149,12 +149,12 @@ export interface SeasonRating {
 export interface PlayerStats {
   playerId: string;
   nickname: string;
-  totalTournaments: number;
-  totalWins: number;
-  totalLosses: number;
-  peakMmr: number;
-  currentMmr: number;
-  history: PlayerTournamentEntry[];
+  totalTournaments?: number;
+  totalWins?: number;
+  totalLosses?: number;
+  peakMmr?: number;
+  currentMmr?: number;
+  history?: PlayerTournamentEntry[];
 }
 
 export interface PlayerTournamentEntry {
@@ -162,10 +162,11 @@ export interface PlayerTournamentEntry {
   tournamentName: string;
   mode: TournamentMode;
   rank: number;
-  mmr: number;
-  wins: number;
-  losses: number;
-  completedAt: string | null;
+  totalPoints?: number;
+  mmr?: number;
+  wins?: number;
+  losses?: number;
+  completedAt?: string | null;
 }
 
 /** API error */
