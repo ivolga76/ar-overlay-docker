@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Urbanist, Barlow, JetBrains_Mono } from "next/font/google";
+import { Urbanist, Barlow, JetBrains_Mono, Prompt } from "next/font/google";
 import { RainbowBar } from "@/components/RainbowBar";
 import "./globals.css";
 
@@ -22,6 +22,12 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "700"],
 });
 
+const prompt = Prompt({
+  variable: "--font-condensed",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+});
+
 export const metadata: Metadata = {
   title: "AR Overlay — Tournament Standings",
   description: "Arc Raiders tournament leaderboard — Битва за Респект. Следи за рейтингом игроков и команд.",
@@ -42,7 +48,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${urbanist.variable} ${barlow.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${urbanist.variable} ${barlow.variable} ${jetbrainsMono.variable} ${prompt.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col grunge-overlay crt-scanlines animated-neon-bg">
         <RainbowBar />

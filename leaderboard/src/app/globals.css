@@ -20,29 +20,43 @@
   --color-text-ui: #ffffff;
   --color-text-muted: #7a7260;
 
-  /* ── Neon Accents (matches report §2) ────────────── */
+  /* ── Neon Accents (matches report §2 + TZ) ───────── */
   --color-accent-magenta: #ff00ff;
+  --color-accent-magenta-hot: #FF2D78;
   --color-accent-cyan: #00ffff;
   --color-accent-gold: #ffb800;
   --color-accent-blue: #0066ff;
   --color-accent-green: #00cc44;
   --color-accent-red: #ff3355;
 
+  /* ── Environment Palette (TZ §2) ─────────────────── */
+  --color-env-olive: #4A5A2A;
+  --color-env-dusty: #8B7355;
+  --color-env-greyblue: #5A6A7A;
+
+  /* ── Weapon Rarity Tiers (TZ §2) ─────────────────── */
+  --color-rarity-common: #9d9d9d;
+  --color-rarity-uncommon: #1eff00;
+  --color-rarity-rare: #0070dd;
+  --color-rarity-epic: #a335ee;
+  --color-rarity-legendary: #ffb800;
+
   /* ── Semantic ────────────────────────────────────── */
   --color-danger: #e83030;
   --color-success: #00cc44;
 
-  /* ── Rainbow Stripe (matches report §1 construction)─ */
-  --color-rainbow-red: #ff3355;
-  --color-rainbow-yellow: #ffb800;
-  --color-rainbow-green: #00cc44;
-  --color-rainbow-blue: #0080ff;
-  --color-rainbow-magenta: #ff00ff;
+  /* ── Rainbow Stripe (TZ §2: diagonal 135°, exact hex)─ */
+  --color-rainbow-red: #E83030;
+  --color-rainbow-yellow: #FFCC00;
+  --color-rainbow-green: #00CC44;
+  --color-rainbow-blue: #0080FF;
+  --color-rainbow-magenta: #FF00FF;
 
   /* ── Fonts (matches report §3) ───────────────────── */
   --font-heading: 'Urbanist', sans-serif;
   --font-body: 'Barlow', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --font-condensed: 'Prompt', sans-serif;
 }
 
 /* ── Base ──────────────────────────────────────────── */
@@ -51,18 +65,19 @@
   --max-width: 960px;
   --background: var(--color-bg-primary);
   --foreground: var(--color-text-body);
-  --crt-glow: 0 0 12px rgba(234, 224, 205, 0.25);
+  --crt-glow: 0 0 10px rgba(234, 224, 205, 0.3);
+  --overlay-opacity: 0.8;
   --neon-glow-cyan: 0 0 18px rgba(0, 255, 255, 0.35);
   --neon-glow-gold: 0 0 18px rgba(255, 184, 0, 0.35);
   --neon-glow-magenta: 0 0 18px rgba(255, 0, 255, 0.35);
   --panel-border: 1px solid rgba(234, 224, 205, 0.08);
   --rainbow-gradient: linear-gradient(
-    90deg,
-    #ff3355 0%,
-    #ffb800 25%,
-    #00cc44 50%,
-    #0080ff 75%,
-    #ff00ff 100%
+    135deg,
+    #E83030 0%,
+    #FFCC00 25%,
+    #00CC44 50%,
+    #0080FF 75%,
+    #FF00FF 100%
   );
   --grunge-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
 }
@@ -249,11 +264,11 @@ body {
   border-bottom: 3px solid transparent;
   border-image: linear-gradient(
     90deg,
-    #ff3355,
-    #ffb800,
-    #00cc44,
-    #0080ff,
-    #ff00ff
+    #E83030,
+    #FFCC00,
+    #00CC44,
+    #0080FF,
+    #FF00FF
   ) 1;
 }
 
@@ -843,4 +858,144 @@ body {
 .top-row-bronze:hover {
   border-color: rgba(205, 127, 50, 0.45) !important;
   box-shadow: 0 0 20px rgba(205, 127, 50, 0.12) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TZ Compliance: Typography, Status, Rarity
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Typography Utility Classes (TZ §3) ────────────── */
+
+/* Body text: Barlow Regular, 16–18px, mixed case */
+.text-body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 1rem;      /* 16px */
+  line-height: 1.6;
+  color: var(--color-text-body);
+}
+@media (min-width: 640px) {
+  .text-body { font-size: 1.125rem; }  /* 18px */
+}
+
+/* UI labels & buttons: Barlow Medium, uppercase */
+.ui-label {
+  font-family: var(--font-body);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8125rem;  /* 13px */
+}
+
+/* HUD data (ammo, health): Prompt Bold / Barlow Bold, numbers */
+.hud-data {
+  font-family: var(--font-condensed);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.125rem;
+  letter-spacing: 0.02em;
+}
+
+/* ── Color-coded Status Indicators (TZ UI) ─────────── */
+
+.status-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-active::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent-cyan);
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+}
+
+.status-completed::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent-green);
+  box-shadow: 0 0 8px rgba(0, 204, 68, 0.6);
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.status-pending::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent-gold);
+  box-shadow: 0 0 8px rgba(255, 184, 0, 0.6);
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.status-cancelled::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  box-shadow: 0 0 8px rgba(232, 48, 48, 0.6);
+  display: inline-block;
+  margin-right: 6px;
+}
+
+/* ── Weapon Rarity Tier Classes (TZ §2) ────────────── */
+
+.rarity-common    { color: var(--color-rarity-common); }
+.rarity-uncommon  { color: var(--color-rarity-uncommon); }
+.rarity-rare      { color: var(--color-rarity-rare); }
+.rarity-epic      { color: var(--color-rarity-epic); }
+.rarity-legendary { color: var(--color-rarity-legendary); }
+
+/* Rarity badges — small pill with tier color */
+.rarity-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid currentColor;
+}
+.rarity-badge.rarity-common    { background: rgba(157, 157, 157, 0.1); }
+.rarity-badge.rarity-uncommon  { background: rgba(30, 255, 0, 0.08); }
+.rarity-badge.rarity-rare      { background: rgba(0, 112, 221, 0.1); }
+.rarity-badge.rarity-epic      { background: rgba(163, 53, 238, 0.1); }
+.rarity-badge.rarity-legendary { background: rgba(255, 184, 0, 0.1); }
+
+/* ── Dark overlay panel (TZ: ~80% opacity) ─────────── */
+
+.overlay-panel {
+  background: rgba(20, 20, 26, var(--overlay-opacity));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(234, 224, 205, 0.08);
+  border-radius: 12px;
+}
+
+/* ── Thin-stroke container with subtle glow (TZ UI) ── */
+
+.container-glow {
+  border: 1px solid rgba(234, 224, 205, 0.1);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 255, 0.04),
+    0 4px 24px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.container-glow:hover {
+  border-color: rgba(0, 255, 255, 0.25);
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 255, 0.08),
+    0 4px 32px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(0, 255, 255, 0.06);
 }
