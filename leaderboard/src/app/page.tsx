@@ -113,7 +113,7 @@ export default async function HomePage() {
           <div className="feature-grid">
             <ScrollRevealItem>
               <FeatureCard
-                icon="🏆"
+                icon={<img src="/raiting.png" alt="Рейтинг" className="w-12 h-12 object-contain mx-auto" />}
                 title="Рейтинг игроков"
                 description="MMR-система: очки × победы × поражения. Глобальный топ и таблицы турниров."
               />

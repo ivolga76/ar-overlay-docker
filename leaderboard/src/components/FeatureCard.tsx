@@ -5,7 +5,7 @@ import { type ReactNode } from 'react';
 import { DarkPanel } from './DarkPanel';
 
 interface FeatureCardProps {
-  icon: string;
+  icon: ReactNode;
   title: string;
   description: string;
   className?: string;
