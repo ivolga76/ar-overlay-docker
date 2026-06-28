@@ -113,9 +113,9 @@ export default async function HomePage() {
           <div className="feature-grid">
             <ScrollRevealItem>
               <FeatureCard
-                icon={<img src="/raiting.png" alt="Рейтинг" className="w-12 h-12 object-contain mx-auto" />}
-                title="Рейтинг игроков"
-                description="MMR-система: очки × победы × поражения. Глобальный топ и таблицы турниров."
+                icon={<img src="/raiting.png" alt="Рейтинг" className="w-full h-full object-cover" />}
+                title=""
+                description=""
               />
             </ScrollRevealItem>
             <ScrollRevealItem>
