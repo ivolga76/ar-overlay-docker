@@ -25,7 +25,7 @@ export default async function HomePage() {
     <main className="flex-1">
       {/* ════════════ Hero — animated background + glitch heading ════════════ */}
       <section className="max-w-4xl mx-auto px-4 pt-20 pb-16 relative">
-        <AnimatedBackground grid particleCount={20} />
+        <AnimatedBackground grid={false} particleCount={20} />
 
         <RainbowStripe className="rounded-lg overflow-hidden relative z-10">
           <div className="px-8 py-20 text-center relative">
