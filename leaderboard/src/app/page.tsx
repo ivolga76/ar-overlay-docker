@@ -151,21 +151,13 @@ export default async function HomePage() {
             <h2 className="heading-section flex-shrink-0">Сезоны</h2>
             <hr className="neon-divider flex-1" />
           </div>
-          <ScrollReveal direction="up" staggerDelay={120}>
-            <div className="feature-grid">
-              {activeSeasons.map((s) => (
-                <ScrollRevealItem key={s.id}>
-                  <Link href={`/season/${s.id}`}>
-                    <FeatureCard
-                      icon={s.id === 'season-2' ? '🆕' : '📅'}
-                      title={s.name}
-                      description={s.description || 'Турнирный сезон'}
-                    />
-                  </Link>
-                </ScrollRevealItem>
-              ))}
-            </div>
-          </ScrollReveal>
+          <nav className="fx-misc-breadcrumb">
+            {activeSeasons.map((s) => (
+              <Link key={s.id} href={`/season/${s.id}`}>
+                {s.name}
+              </Link>
+            ))}
+          </nav>
         </section>
       )}
 
