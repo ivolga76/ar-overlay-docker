@@ -226,6 +226,7 @@ function enrichStandings(entries: LeaderboardEntry[]): StandingEntry[] {
     return {
       rank: i + 1,
       nickname: entry.participant_name,
+      participantId: entry.participant_id,
       mmr,
       wins,
       losses,

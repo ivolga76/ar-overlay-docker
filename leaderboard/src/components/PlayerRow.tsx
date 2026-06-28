@@ -1,6 +1,8 @@
 // PlayerRow — single row in the standings table
 // Enhanced: rank-specific glow, medal animations, 3D hover lift
+// Clickable → opens player stats page
 
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import type { StandingEntry } from '@/lib/types';
 import { formatMmr } from '@/lib/utils';
@@ -36,7 +38,7 @@ export function PlayerRow({ entry, index }: PlayerRowProps) {
       className={`
         dark-panel card-tilt
         flex items-center gap-3 px-4 py-3
-        cursor-default
+        cursor-pointer
         ${topClass}
       `}
       whileHover={
@@ -71,15 +73,19 @@ export function PlayerRow({ entry, index }: PlayerRowProps) {
         )}
       </motion.div>
 
-      {/* Nickname */}
+      {/* Nickname — clickable link to player page */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className={`
-            heading-lg text-base truncate
-            ${isTop3 ? 'crt-glow-gold' : 'text-text-primary'}
-          `}>
+          <Link
+            href={`/player/${entry.participantId}`}
+            className={`
+              heading-lg text-base truncate
+              hover:text-accent-cyan transition-colors
+              ${isTop3 ? 'crt-glow-gold' : 'text-text-primary'}
+            `}
+          >
             {entry.nickname}
-          </span>
+          </Link>
           {entry.isTeam && (
             <span className="text-[10px] uppercase tracking-wider text-accent-cyan font-heading font-bold">
               team

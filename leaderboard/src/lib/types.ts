@@ -20,6 +20,7 @@ export interface LeaderboardEntry {
 export interface StandingEntry {
   rank: number;
   nickname: string;
+  participantId: string;
   mmr: number;
   wins: number;
   losses: number;
