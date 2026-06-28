@@ -111,18 +111,23 @@ export function StandingsTable({
 function LoadingSkeleton({ count }: { count: number }) {
   return (
     <div className="flex flex-col gap-1">
+      {/* Progress bar at top while loading */}
+      <div className="mb-2">
+        <div className="progress-rainbow" />
+      </div>
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
           className="dark-panel flex items-center gap-3 px-4 py-4"
+          style={{ animationDelay: `${i * 0.08}s` }}
         >
-          <div className="skeleton w-8 h-5" />
+          <div className="skeleton-shimmer w-8 h-5" />
           <div className="flex-1 flex flex-col gap-1.5">
-            <div className="skeleton w-40 h-4" />
-            <div className="skeleton w-24 h-3" />
+            <div className="skeleton-shimmer w-40 h-4" />
+            <div className="skeleton-shimmer w-24 h-3" />
           </div>
-          <div className="skeleton w-12 h-5" />
-          <div className="skeleton w-16 h-4 hidden sm:block" />
+          <div className="skeleton-shimmer w-12 h-5" />
+          <div className="skeleton-shimmer w-16 h-4 hidden sm:block" />
           <div className="w-6" />
         </div>
       ))}
