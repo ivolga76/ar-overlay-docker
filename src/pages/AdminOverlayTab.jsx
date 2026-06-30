@@ -353,8 +353,17 @@ export default function AdminOverlayTab({
               type="button"
               className="roulette-btn"
               onClick={spinRoulette}
-              disabled={(!state.rouletteItems || state.rouletteItems.length === 0) && state.tasks.length === 0}
-              title={((!state.rouletteItems || state.rouletteItems.length === 0) && state.tasks.length === 0) ? 'Нет пунктов для рулетки' : 'Запустить рулетку в оверлее'}
+              disabled={
+                (state.rouletteData?.spinning) ||
+                ((!state.rouletteItems || state.rouletteItems.length === 0) && state.tasks.length === 0)
+              }
+              title={
+                state.rouletteData?.spinning
+                  ? 'Рулетка уже запущена'
+                  : ((!state.rouletteItems || state.rouletteItems.length === 0) && state.tasks.length === 0)
+                    ? 'Нет пунктов для рулетки'
+                    : 'Запустить рулетку в оверлее'
+              }
               style={{ flex: 1, padding: '12px', fontSize: 16 }}
             >
               🎰 Крутить

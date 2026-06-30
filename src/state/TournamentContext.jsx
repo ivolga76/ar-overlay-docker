@@ -837,6 +837,9 @@ export function TournamentProvider({ children, overlayUserId = null }) {
   }, [connected, send]);
 
   const spinRoulette = useCallback(() => {
+    // Prevent double-spin if already running
+    if (state.rouletteData?.spinning) return;
+
     const items = (state.rouletteItems && state.rouletteItems.length > 0) ? state.rouletteItems : state.tasks;
     if (!items.length) return;
 
