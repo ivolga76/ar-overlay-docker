@@ -175,7 +175,7 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
   const VISIBLE_ITEMS = Math.min(items.length, 5)
   const CONTAINER_HEIGHT = VISIBLE_ITEMS * ITEM_STEP + 12 // top/bottom padding
   const HIGHLIGHT_CENTER = CONTAINER_HEIGHT / 2
-  const FULL_CYCLES = 2 // tripled list allows 2 full visual passes
+  const FULL_CYCLES = 2
 
   const { state: st } = useTournament()
   const spinDurationMs = (st.rouletteSpinDuration || 10) * 1000
@@ -183,6 +183,7 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
   const [animOffset, setAnimOffset] = useState(0)
   const [showResult, setShowResult] = useState(false)
   const [resultText, setResultText] = useState('')
+  const [shuffledItems, setShuffledItems] = useState([])
 
   const animFrameRef = useRef(null)
   const startTimeRef = useRef(null)
@@ -190,15 +191,15 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
   const resultTimerRef = useRef(null)
   const finalOffsetRef = useRef(0)
 
-  // Compute final offset synchronously during render — animation starts at 0 (items visible)
+  // Compute final offset synchronously during render (used by the effect below)
   if (rd?.resultIndex != null && items.length) {
     const totalItems = items.length
-    const displayWinnerIdx = totalItems + rd.resultIndex
+    const displayWinnerIdx = (FULL_CYCLES + 1) * totalItems + rd.resultIndex
     const winnerCenterY = displayWinnerIdx * ITEM_STEP + ITEM_HEIGHT / 2
-    const base = HIGHLIGHT_CENTER - winnerCenterY
-    finalOffsetRef.current = base - FULL_CYCLES * totalItems * ITEM_STEP
+    finalOffsetRef.current = HIGHLIGHT_CENTER - winnerCenterY
   }
 
+  // ── Spin start: build random sequence + launch animation ──────────
   useEffect(() => {
     if (!rd?.spinning) return
     if (rd.spinId != null && rd.spinId === lastSpinIdRef.current) return
@@ -207,6 +208,26 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     if (resultTimerRef.current) clearTimeout(resultTimerRef.current)
 
+    // Build random display sequence — winner forced at the correct index
+    const totalItems = items.length
+    const winIdx = rd.resultIndex
+    const displayWinnerIdx = (FULL_CYCLES + 1) * totalItems + winIdx
+    const seq = []
+    while (seq.length <= displayWinnerIdx) {
+      // One full shuffle of all items (Fisher-Yates)
+      const cycle = items.map((item) => ({ ...item }))
+      for (let i = cycle.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cycle[i], cycle[j]] = [cycle[j], cycle[i]]
+      }
+      seq.push(...cycle)
+    }
+    seq.length = displayWinnerIdx + 1
+    // Winner lands exactly at the highlight
+    seq[displayWinnerIdx] = { ...items[winIdx] }
+    setShuffledItems(seq)
+
+    // Reset animation state
     setShowResult(false)
     setResultText('')
     setAnimOffset(0)
@@ -225,9 +246,8 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
         animFrameRef.current = requestAnimationFrame(animate)
       } else {
         setAnimOffset(final)
-        const idx = rd.resultIndex
-        if (idx != null && items[idx]) {
-          setResultText(items[idx].text)
+        if (winIdx != null && items[winIdx]) {
+          setResultText(items[winIdx].text)
           setShowResult(true)
           resultTimerRef.current = setTimeout(() => {
             setShowResult(false)
@@ -244,19 +264,21 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
     }
   }, [rd?.spinning, rd?.spinId, spinDurationMs])
 
+  // ── Clear on reset ───────────────────────────────────────────────
   useEffect(() => {
     if (!rd) {
       setShowResult(false)
       setResultText('')
+      setShuffledItems([])
       lastSpinIdRef.current = null
     }
   }, [rd])
 
-  // Build display list: triple for seamless visual
+  // Static display: triple list; during spin: random shuffled sequence
   const displayItems = useMemo(() => {
     if (!items.length) return []
-    return [...items, ...items, ...items]
-  }, [items])
+    return shuffledItems.length > 0 ? shuffledItems : [...items, ...items, ...items]
+  }, [items, shuffledItems])
 
   return (
     <div className="overlay-widget-inner" style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
