@@ -270,6 +270,7 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
       setShowResult(false)
       setResultText('')
       setShuffledItems([])
+      setAnimOffset(0)
       lastSpinIdRef.current = null
     }
   }, [rd])
