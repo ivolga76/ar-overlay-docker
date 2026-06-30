@@ -168,7 +168,7 @@ const ROULETTE_COLORS = ['#ff4d6a', '#ffb347', '#4ecdc4', '#7b68ee', '#ff6b9d', 
 
 // ── Slot-machine roulette variant ────────────────────────────────────────
 
-const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
+const SlotRoulette = memo(function SlotRoulette({ items, rd, spinDurationMs }) {
   const ITEM_HEIGHT = 40
   const ITEM_GAP = 3
   const ITEM_STEP = ITEM_HEIGHT + ITEM_GAP
@@ -176,9 +176,6 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
   const CONTAINER_HEIGHT = VISIBLE_ITEMS * ITEM_STEP + 12 // top/bottom padding
   const HIGHLIGHT_CENTER = CONTAINER_HEIGHT / 2
   const FULL_CYCLES = 2
-
-  const { state: st } = useTournament()
-  const spinDurationMs = (st.rouletteSpinDuration || 10) * 1000
 
   const [animOffset, setAnimOffset] = useState(0)
   const [showResult, setShowResult] = useState(false)
@@ -339,13 +336,8 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
 
 // ── Wheel roulette variant (original) ────────────────────────────────────
 
-const WheelRoulette = memo(function WheelRoulette({ data }) {
-  const { state: st } = useTournament()
-  const rd = st.rouletteData
-  const rouletteItems = st.rouletteItems
-  const items = rd?.items || (rouletteItems && rouletteItems.length > 0 ? rouletteItems : data.tasks) || []
+const WheelRoulette = memo(function WheelRoulette({ items, rd, spinDurationMs }) {
   const sectorAngle = items.length > 0 ? 360 / items.length : 60
-  const spinDurationMs = (st.rouletteSpinDuration || 10) * 1000
 
   const [animAngle, setAnimAngle] = useState(0)
   const [showResult, setShowResult] = useState(false)
@@ -507,6 +499,7 @@ const Roulette = memo(function Roulette({ data }) {
   const rouletteItems = st.rouletteItems
   const items = rd?.items || (rouletteItems && rouletteItems.length > 0 ? rouletteItems : data.tasks) || []
   const variant = st.rouletteVariant || 'wheel'
+  const spinDurationMs = (st.rouletteSpinDuration || 10) * 1000
 
   if (!items.length) {
     return (
@@ -518,9 +511,9 @@ const Roulette = memo(function Roulette({ data }) {
   }
 
   if (variant === 'slot') {
-    return <SlotRoulette items={items} rd={rd} />
+    return <SlotRoulette items={items} rd={rd} spinDurationMs={spinDurationMs} />
   }
-  return <WheelRoulette data={data} />
+  return <WheelRoulette items={items} rd={rd} spinDurationMs={spinDurationMs} />
 })
 
 const WIDGET_COMPONENTS = {
