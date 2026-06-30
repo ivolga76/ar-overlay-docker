@@ -206,12 +206,14 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd, spinDurationMs }) {
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     if (resultTimerRef.current) { clearTimeout(resultTimerRef.current); resultTimerRef.current = null }
 
-    // Build random display sequence — winner forced at the correct index
+    // Build random display sequence — winner forced at the correct index.
+    // Extra items after the winner keep the drum looking circular.
     const totalItems = items.length
     const winIdx = rd.resultIndex
     const displayWinnerIdx = (FULL_CYCLES + 1) * totalItems + winIdx
+    const EXTRA_ITEMS = VISIBLE_ITEMS + 1
     const seq = []
-    while (seq.length <= displayWinnerIdx) {
+    while (seq.length <= displayWinnerIdx + EXTRA_ITEMS) {
       // One full shuffle of all items (Fisher-Yates)
       const cycle = items.map((item) => ({ ...item }))
       for (let i = cycle.length - 1; i > 0; i--) {
@@ -220,7 +222,7 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd, spinDurationMs }) {
       }
       seq.push(...cycle)
     }
-    seq.length = displayWinnerIdx + 1
+    seq.length = displayWinnerIdx + 1 + EXTRA_ITEMS
     // Winner lands exactly at the highlight
     seq[displayWinnerIdx] = { ...items[winIdx] }
     setShuffledItems(seq)
