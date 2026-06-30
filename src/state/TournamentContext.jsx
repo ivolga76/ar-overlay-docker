@@ -376,6 +376,8 @@ export function TournamentProvider({ children, overlayUserId = null }) {
       overlayLayout: state.overlayLayout,
       previousPlayerOrTeamId: state.previousPlayerOrTeamId,
       rouletteData: state.rouletteData,
+      rouletteVariant: state.rouletteVariant,
+      rouletteSpinDuration: state.rouletteSpinDuration,
     };
     send({ type: 'update', state: subset });
   }, [state, connected, send]);

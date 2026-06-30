@@ -175,7 +175,7 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
   const VISIBLE_ITEMS = Math.min(items.length, 5)
   const CONTAINER_HEIGHT = VISIBLE_ITEMS * ITEM_STEP + 12 // top/bottom padding
   const HIGHLIGHT_CENTER = CONTAINER_HEIGHT / 2
-  const FULL_CYCLES = 5
+  const FULL_CYCLES = 2 // tripled list allows 2 full visual passes
 
   const { state: st } = useTournament()
   const spinDurationMs = (st.rouletteSpinDuration || 10) * 1000
@@ -188,15 +188,15 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
   const startTimeRef = useRef(null)
   const lastSpinIdRef = useRef(null)
   const resultTimerRef = useRef(null)
-  const offsetsRef = useRef({ start: 0, final: 0 })
+  const finalOffsetRef = useRef(0)
 
-  // Update offsets synchronously during render so the effect sees the correct values
+  // Compute final offset synchronously during render — animation starts at 0 (items visible)
   if (rd?.resultIndex != null && items.length) {
     const totalItems = items.length
     const displayWinnerIdx = totalItems + rd.resultIndex
-    const finalOffset = HIGHLIGHT_CENTER - ITEM_HEIGHT / 2 - displayWinnerIdx * ITEM_STEP
-    const startOffset = finalOffset - FULL_CYCLES * totalItems * ITEM_STEP
-    offsetsRef.current = { start: startOffset, final: finalOffset }
+    const winnerCenterY = displayWinnerIdx * ITEM_STEP + ITEM_HEIGHT / 2
+    const base = HIGHLIGHT_CENTER - winnerCenterY
+    finalOffsetRef.current = base - FULL_CYCLES * totalItems * ITEM_STEP
   }
 
   useEffect(() => {
@@ -209,19 +209,17 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
 
     setShowResult(false)
     setResultText('')
-
-    const { start, final } = offsetsRef.current
-    setAnimOffset(start)
+    setAnimOffset(0)
     startTimeRef.current = null
 
-    const totalDistance = final - start
+    const final = finalOffsetRef.current
 
     function animate(timestamp) {
       if (!startTimeRef.current) startTimeRef.current = timestamp
       const elapsed = timestamp - startTimeRef.current
       const progress = Math.min(elapsed / spinDurationMs, 1)
       const eased = easeRoulette(progress)
-      setAnimOffset(start + eased * totalDistance)
+      setAnimOffset(eased * final)
 
       if (progress < 1) {
         animFrameRef.current = requestAnimationFrame(animate)
@@ -231,7 +229,6 @@ const SlotRoulette = memo(function SlotRoulette({ items, rd }) {
         if (idx != null && items[idx]) {
           setResultText(items[idx].text)
           setShowResult(true)
-          // Auto-hide result after 2 seconds
           resultTimerRef.current = setTimeout(() => {
             setShowResult(false)
           }, 2000)
