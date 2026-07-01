@@ -413,6 +413,9 @@ app.post('/api/tournaments', (req, res) => {
     return res.status(400).json({ error: 'Название турнира обязательно' });
   }
 
+  if (mode && mode !== '1x1' && mode !== '2x2') {
+    return res.status(400).json({ error: 'Режим должен быть 1x1 или 2x2' });
+  }
   const tournamentMode = mode === '2x2' ? '2x2' : '1x1';
   const rounds = Math.max(1, Math.min(20, parseInt(totalRounds) || 3));
   const tournamentId = randomUUID();
@@ -607,7 +610,7 @@ app.put('/api/tournaments/:id', (req, res) => {
   saveToDisk();
 
   const updated = queryOne('SELECT * FROM tournaments WHERE id = ?', [tournament.id]);
-  broadcastTournaments(user.id);
+  broadcastTournaments(owner.user.id);
   console.log(`[api] tournament updated: "${updated.name}"`);
   res.json({ tournament: updated });
 });
@@ -626,7 +629,7 @@ app.delete('/api/tournaments/:id', (req, res) => {
   run('DELETE FROM tournaments WHERE id = ?', [tournament.id]);
   saveToDisk();
 
-  broadcastTournaments(user.id);
+  broadcastTournaments(owner.user.id);
   console.log(`[api] tournament deleted: "${tournament.name}"`);
   res.json({ ok: true });
 });
