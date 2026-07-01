@@ -35,6 +35,9 @@ ENV API_URL=http://ar-overlay:3001
 
 EXPOSE 3002
 
+# Fix permissions for non-root user
+RUN chown -R node:node /app
+
 USER node
 
 CMD ["node", "server.js"]
