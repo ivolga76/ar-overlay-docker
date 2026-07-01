@@ -264,6 +264,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
   });
 
   const syncingFromServer = useRef(false);
+  const pendingServerSyncs = useRef(0); // counter for push-effect guard
   const { token } = useAuth();
   const { send, on, connected } = useServerSync(token, overlayUserId);
 
@@ -271,6 +272,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
   useEffect(() => {
     on('full', (msg) => {
       syncingFromServer.current = true;
+      pendingServerSyncs.current++;
       setState((current) => ({
         ...normalizeState(msg.state),
         timerData: { remainingMs: 0, totalMs: 0, running: false, paused: false },
@@ -278,6 +280,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     });
     on('update', (msg) => {
       syncingFromServer.current = true;
+      pendingServerSyncs.current++;
       setState((current) => {
         // Bail out if incoming state is identical - prevents
         // LayoutEditor jitter from WebSocket echo on visibility toggle
@@ -289,10 +292,12 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     });
     on('updateTasks', (msg) => {
       syncingFromServer.current = true;
+      pendingServerSyncs.current++;
       setState((current) => ({ ...current, tasks: msg.tasks.map(normalizeTask) }));
     });
     on('spinRoulette', (msg) => {
       syncingFromServer.current = true;
+      pendingServerSyncs.current++;
       setState((current) => ({
         ...current,
         rouletteData: {
@@ -306,6 +311,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     });
     on('setRouletteItems', (msg) => {
       syncingFromServer.current = true;
+      pendingServerSyncs.current++;
       setState((current) => ({
         ...current,
         rouletteItems: Array.isArray(msg.items) ? msg.items : [],
@@ -314,14 +320,17 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     });
     on('clearRoulette', () => {
       syncingFromServer.current = true;
+      pendingServerSyncs.current++;
       setState((current) => ({ ...current, rouletteData: null }));
     });
     on('setRouletteVariant', (msg) => {
       syncingFromServer.current = true;
+      pendingServerSyncs.current++;
       setState((current) => ({ ...current, rouletteVariant: msg.variant === 'slot' ? 'slot' : 'wheel' }));
     });
     on('setRouletteSpinDuration', (msg) => {
       syncingFromServer.current = true;
+      pendingServerSyncs.current++;
       setState((current) => {
         const safe = clampDuration(msg.duration);
         if (current.rouletteSpinDuration === safe) return current;
@@ -363,12 +372,15 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     }
   }, [connected]);
 
-  // Send state changes to server (only when NOT syncing from server)
+  // Send state changes to server (only when NOT syncing from server).
+  // Uses pendingServerSyncs counter (not syncingFromServer boolean)
+  // so multiple rapid WS messages don't leak a send when React renders
+  // them in separate batches.
   // timerData EXCLUDED — timer has its own sync channel to avoid echo loops
   useEffect(() => {
     if (!connected) return;
-    if (syncingFromServer.current) {
-      syncingFromServer.current = false;
+    if (pendingServerSyncs.current > 0) {
+      pendingServerSyncs.current = 0; // consume all pending WS flags
       return;
     }
     const subset = {
@@ -403,7 +415,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
   useEffect(() => {
     // Don't write to localStorage when syncing from server —
     // prevents handleStorage from firing and creating an echo loop
-    if (syncingFromServer.current) return;
+    if (pendingServerSyncs.current > 0) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
@@ -897,7 +909,7 @@ export function TournamentProvider({ children, overlayUserId = null }) {
         return next;
       });
     }, TOTAL_MS);
-  }, [state.tasks, state.rouletteItems, connected, send]);
+  }, [state.tasks, state.rouletteItems, state.rouletteSpinDuration, connected, send]);
 
   // Memoize standings separately — prevents cascade re-renders on timer ticks
   const standings = useMemo(() => {
