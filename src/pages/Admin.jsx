@@ -43,7 +43,7 @@ export default function Admin() {
 
   const [activeTab, setActiveTab] = useState('overlay');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { logout, user } = useAuth();
+  const { logout, user, token } = useAuth();
 
   // Keyboard: Arrow keys switch participants, +/- adjust points
   useEffect(() => {
@@ -81,39 +81,61 @@ export default function Admin() {
     playRoundChange();
   }, [state.currentRound]);
 
-  // Export/import
-  const handleExport = useCallback(() => {
-    const raw = localStorage.getItem('battle-for-respect:v1');
-    const blob = new Blob([raw || '{}'], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `arc-raiders-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, []);
+  // Export/import — uses server API instead of localStorage
+  const API_BASE = window.location.origin;
+
+  const handleExport = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/state/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Ошибка экспорта');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ar-overlay-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Ошибка сети при экспорте');
+    }
+  }, [token]);
 
   const handleImport = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (re) => {
-        try {
-          JSON.parse(re.target.result);
-          localStorage.setItem('battle-for-respect:v1', re.target.result);
-          window.location.reload();
-        } catch {
-          alert('Неверный формат файла');
+      try {
+        const text = await file.text();
+        JSON.parse(text); // validate JSON
+        const res = await fetch(`${API_BASE}/api/state/import`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: text,
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Ошибка импорта');
+          return;
         }
-      };
-      reader.readAsText(file);
+        window.location.reload();
+      } catch (err) {
+        alert(err.message || 'Неверный формат файла');
+      }
     };
     input.click();
-  }, []);
+  }, [token]);
 
   // Overlay state for template checkboxes
   const overlayTasks = state.tasks;

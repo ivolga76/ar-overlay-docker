@@ -107,6 +107,54 @@ const gameFields = [
 ];
 
 const userStates = new Map();
+const userLastAccess = new Map(); // userId → timestamp for TTL cleanup
+
+// ── Rate limiter (in-memory, per-IP) ──────────────────────────
+const rateLimitMap = new Map(); // ip → { count, resetAt }
+const RATE_LIMIT_MAX = 20;       // max requests
+const RATE_LIMIT_WINDOW = 60000; // per 60 seconds
+
+function rateLimit(req, res, next) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  let entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW };
+    rateLimitMap.set(ip, entry);
+  }
+  entry.count++;
+  res.setHeader('X-RateLimit-Remaining', Math.max(0, RATE_LIMIT_MAX - entry.count));
+  if (entry.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' });
+  }
+  next();
+}
+
+// Periodic cleanup of rate limit map (every 5 min)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(ip);
+  }
+}, 300000).unref();
+
+// ── userStates TTL cleanup (30 min inactivity) ────────────────
+function touchAccess(userId) {
+  userLastAccess.set(userId, Date.now());
+}
+
+setInterval(() => {
+  const now = Date.now();
+  const TTL = 30 * 60 * 1000; // 30 minutes
+  for (const [userId, lastAccess] of userLastAccess) {
+    if (now - lastAccess > TTL) {
+      saveStateNow(userId);
+      userStates.delete(userId);
+      userLastAccess.delete(userId);
+      console.log(`[state] cleaned up inactive user: ${userId}`);
+    }
+  }
+}, 600000).unref(); // every 10 minutes
 
 function stateFile(userId) {
   return join(STATE_DIR, `${userId}.json`);
@@ -114,7 +162,7 @@ function stateFile(userId) {
 
 function loadState(userId) {
   const cached = userStates.get(userId);
-  if (cached) return cached;
+  if (cached) { touchAccess(userId); return cached; }
   try {
     mkdirSync(STATE_DIR, { recursive: true });
     if (!existsSync(stateFile(userId))) {
@@ -132,6 +180,7 @@ function loadState(userId) {
       paused: false,
     };
     userStates.set(userId, parsed);
+    touchAccess(userId);
     return parsed;
   } catch {
     const fresh = { ...DEFAULT_STATE };
@@ -281,7 +330,7 @@ app.use((req, res, next) => {
 
 // ── Auth routes ──────────────────────────────────────────────
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', rateLimit, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'Email и пароль обязательны' });
@@ -313,7 +362,7 @@ app.post('/api/register', async (req, res) => {
   res.status(201).json({ token, user: { email: cleanEmail, id: userId } });
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', rateLimit, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'Email и пароль обязательны' });
@@ -347,7 +396,7 @@ app.get('/api/me', (req, res) => {
   res.json({ user: { email: user.email, id: user.id } });
 });
 
-app.post('/api/change-password', async (req, res) => {
+app.post('/api/change-password', rateLimit, async (req, res) => {
   const user = authenticate(req);
   if (!user) {
     return res.status(401).json({ error: 'Не авторизован' });
@@ -2154,6 +2203,49 @@ function broadcastTournaments(userId) {
   );
   broadcast({ type: 'tournaments', tournaments }, userId);
 }
+
+// ── State Export/Import ────────────────────────────────────────
+
+// GET /api/state/export — download user's tournament state as JSON
+app.get('/api/state/export', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  loadState(user.id);
+  const state = publicState(user.id);
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="ar-overlay-backup-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.json(state);
+});
+
+// POST /api/state/import — restore user's tournament state from JSON
+app.post('/api/state/import', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const imported = req.body;
+  if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+    return res.status(400).json({ error: 'Неверный формат данных — ожидается JSON-объект' });
+  }
+
+  loadState(user.id);
+  const st = userStates.get(user.id);
+
+  // Merge only game-relevant fields from import
+  for (const f of gameFields) {
+    if (f in imported) st[f] = imported[f];
+  }
+  // Reset timer
+  st.timer = { remainingMs: 0, totalMs: st.timer?.totalMs ?? 0, running: false, paused: false };
+
+  bump(user.id, 'state-import', 'api', {});
+  saveStateNow(user.id);
+  broadcast({ type: 'full', state: publicState(user.id), version: st.version }, user.id);
+
+  console.log(`[api] state imported by ${user.email}`);
+  res.json({ ok: true, version: st.version });
+});
 
 // ── Start ────────────────────────────────────────────────────
 
