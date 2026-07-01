@@ -4,6 +4,7 @@ export default function useServerSync(token = null, subscribeUserId = null) {
   const wsRef = useRef(null);
   const handlersRef = useRef({});
   const reconnectTimeout = useRef(null);
+  const retryDelayRef = useRef(1000); // start at 1s, exponential backoff
   const [connected, setConnected] = useState(false);
   const mountedRef = useRef(true);
   // Generation counter — only the latest connection matters
@@ -56,6 +57,7 @@ export default function useServerSync(token = null, subscribeUserId = null) {
       }
 
       setConnected(true);
+      retryDelayRef.current = 1000; // reset backoff on successful connect
     };
 
     socket.onmessage = (event) => {
@@ -72,12 +74,14 @@ export default function useServerSync(token = null, subscribeUserId = null) {
     socket.onclose = () => {
       if (gen !== genRef.current) return; // stale socket
       setConnected(false);
-      console.log('[sync] disconnected, reconnecting in 1s...');
+      const delay = retryDelayRef.current;
+      retryDelayRef.current = Math.min(retryDelayRef.current * 2, 30000); // max 30s
+      console.log(`[sync] disconnected, reconnecting in ${delay}ms...`);
       if (mountedRef.current && !reconnectTimeout.current) {
         reconnectTimeout.current = setTimeout(() => {
           reconnectTimeout.current = null;
           connect();
-        }, 1000);
+        }, delay);
       }
     };
 

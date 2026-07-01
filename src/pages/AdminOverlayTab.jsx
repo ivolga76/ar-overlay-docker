@@ -193,10 +193,11 @@ export default function AdminOverlayTab({
   // Sync draft when state.currentPoints changes externally (e.g. WebSocket, task completion)
   // but only if the user isn't currently editing
   const [editingPoints, setEditingPoints] = useState(false);
-  if (!editingPoints && String(state.currentPoints) !== pointsDraft) {
-    // Use a microtask to avoid setState-during-render warnings in React 19
-    queueMicrotask(() => setPointsDraft(String(state.currentPoints)));
-  }
+  useEffect(() => {
+    if (!editingPoints && String(state.currentPoints) !== pointsDraft) {
+      setPointsDraft(String(state.currentPoints));
+    }
+  }, [state.currentPoints, editingPoints]);
 
   function handleAddPlayer(event) {
     event.preventDefault();

@@ -142,6 +142,9 @@ function stateFieldsEqual(current, incoming) {
   if (current.currentParticipantId !== incoming.currentParticipantId) return false;
   if (current.showStandings !== incoming.showStandings) return false;
   if (current.previousPlayerOrTeamId !== incoming.previousPlayerOrTeamId) return false;
+  if (current.tournamentName !== incoming.tournamentName) return false;
+  if (current.totalRounds !== incoming.totalRounds) return false;
+  if (current.soundEnabled !== incoming.soundEnabled) return false;
   // Compare tasks length and ids (fast check)
   const curTasks = current.tasks;
   const incTasks = incoming.tasks;
@@ -181,6 +184,8 @@ function stateFieldsEqual(current, incoming) {
   if (current.rouletteVariant !== incoming.rouletteVariant) return false;
   // rouletteSpinDuration
   if (current.rouletteSpinDuration !== incoming.rouletteSpinDuration) return false;
+  // rouletteItems: compare length
+  if ((current.rouletteItems?.length ?? 0) !== (incoming.rouletteItems?.length ?? 0)) return false;
   return true;
 }
 

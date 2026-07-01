@@ -103,7 +103,7 @@ const gameFields = [
   'mode', 'currentRound', 'currentPoints', 'currentParticipantId',
   'tasks', 'players', 'teams', 'showStandings', 'extensions', 'rounds',
   'previousPlayerOrTeamId', 'overlayLayout', 'totalRounds', 'tournamentName', 'soundEnabled',
-  'rouletteItems',
+  'rouletteItems', 'rouletteVariant', 'rouletteSpinDuration',
 ];
 
 const userStates = new Map();

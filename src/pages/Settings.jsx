@@ -256,6 +256,7 @@ export default function Settings() {
             onChange={(e) => setLocalDuration(Number(e.target.value))}
             onMouseUp={(e) => setRouletteSpinDuration(Number(e.target.value))}
             onTouchEnd={(e) => setRouletteSpinDuration(Number(e.target.value))}
+            onBlur={(e) => setRouletteSpinDuration(Number(e.target.value))}
             style={{ width: '100%', accentColor: 'var(--cyan)' }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
