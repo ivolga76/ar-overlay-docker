@@ -125,7 +125,12 @@ function loadState(userId) {
     }
     const raw = readFileSync(stateFile(userId), 'utf8');
     const parsed = { ...DEFAULT_STATE, ...JSON.parse(raw) };
-    parsed.timer = { remainingMs: 0, totalMs: 0, running: false, paused: false };
+    parsed.timer = {
+      remainingMs: 0,
+      totalMs: parsed.timer?.totalMs ?? 0,
+      running: false,
+      paused: false,
+    };
     userStates.set(userId, parsed);
     return parsed;
   } catch {
