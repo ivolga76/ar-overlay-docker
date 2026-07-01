@@ -26,6 +26,7 @@ services:
     restart: always
     environment:
       - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
       - API_URL=http://app:3001
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/',r=>{process.exit(r.statusCode===200?0:1)})"]
