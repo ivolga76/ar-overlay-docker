@@ -10,3 +10,20 @@ backups/
 *.jpg
 *.zip
 SESSION_HANDOFF.md
+
+# Personal / dev notes
+Migration.txt
+Promt_AR-overlay.txt
+tz.txt
+screenshot.mjs
+timer-demo.html
+server_v2.js
+src/styles.css_Backup.txt
+qa-screenshots.js
+skills-lock.json
+
+# Local tooling dirs
+.agents/
+.codewhale/
+.deepseek/
+.hermes/
