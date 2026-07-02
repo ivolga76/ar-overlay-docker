@@ -1,7 +1,10 @@
 // ARC Raiders Tournament — TypeScript types
+// Updated: 2026-07-03 (migration 004)
 
 export type TournamentMode = '1x1' | '2x2';
 export type TournamentStatus = 'draft' | 'active' | 'completed';
+export type MatchupType = 'mirrored' | 'mixed';
+export type RewardType = 'blueprint' | 'weapon' | 'key' | 'discord_role' | 'other';
 
 /** Raw API response from /api/leaderboard */
 export interface LeaderboardEntry {
@@ -42,12 +45,88 @@ export interface TournamentDetail {
   mode: TournamentMode;
   status: TournamentStatus;
   total_rounds: number;
+  matchup_type: MatchupType | null;
   created_at: string;
+  started_at: string | null;
   completed_at: string | null;
   organizer_name?: string;
 }
 
-// ── Season 2 types ───────────────────────────────────────
+// ── Player identity ──────────────────────────────────────────
+
+export interface Player {
+  id: string;
+  display_name: string;
+  embark_id: string | null;
+  discord_name: string | null;
+  created_at: string;
+}
+
+// ── Participant (extended) ───────────────────────────────────
+
+export interface TournamentParticipant {
+  id: string;
+  tournament_id: string;
+  player_id: string | null;
+  name: string;
+  type: 'player' | 'team';
+  embark_id: string | null;
+  hours_played: number | null;
+  lobby_type: 'pvp' | 'pve' | 'pvpve' | null;
+  player_type: 'pvp' | 'pve' | 'pvpve' | null;
+  amplifier: string | null;
+  shield: string | null;
+  discord_role: string | null;
+  sort_order: number;
+  players?: { name: string }[]; // enriched for teams
+}
+
+// ── Round result (extended) ──────────────────────────────────
+
+export interface RoundResult {
+  id: string;
+  tournament_id: string;
+  round_number: number;
+  participant_id: string;
+  points_earned: number;
+  tasks_completed: string | null;
+  map_name: string | null;
+  map_condition: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  deaths: number;
+  loot_allowed: number;
+  crafted_keys_used: number;
+  penalty_seconds_applied: number;
+  created_at: string;
+}
+
+// ── Standings (extended) ─────────────────────────────────────
+
+export interface TournamentStanding {
+  tournament_id: string;
+  participant_id: string;
+  total_points: number;
+  rank: number;
+  is_winner: number;
+  mmr_before: number | null;
+  mmr_after: number | null;
+  streak: number;
+}
+
+// ── Rewards ──────────────────────────────────────────────────
+
+export interface TournamentReward {
+  id: string;
+  tournament_id: string;
+  participant_id: string;
+  reward_type: RewardType;
+  reward_name: string;
+  giver_order: number;
+  created_at: string;
+}
+
+// ── Season 2 types (existing) ────────────────────────────────
 
 export interface Season {
   id: string;

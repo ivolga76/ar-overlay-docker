@@ -1,5 +1,6 @@
 -- AR Overlay — Database Schema
 -- SQLite (sql.js / WASM)
+-- Updated: 2026-07-03 (migration 004)
 
 -- ── Users & Auth ─────────────────────────────────────────────
 
@@ -20,6 +21,16 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- ── Players (cross-tournament identity) ─────────────────────
+
+CREATE TABLE IF NOT EXISTS players (
+  id            TEXT PRIMARY KEY,
+  display_name  TEXT NOT NULL,
+  embark_id     TEXT UNIQUE,
+  discord_name  TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 -- ── Seasons ──────────────────────────────────────────────────
 
@@ -43,7 +54,9 @@ CREATE TABLE IF NOT EXISTS tournaments (
   mode         TEXT NOT NULL DEFAULT '1x1' CHECK(mode IN ('1x1','2x2')),
   status       TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','active','completed')),
   total_rounds INTEGER NOT NULL DEFAULT 3,
+  matchup_type TEXT CHECK(matchup_type IN ('mirrored','mixed')),
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at   TEXT,
   completed_at TEXT
 );
 
@@ -57,16 +70,21 @@ CREATE INDEX IF NOT EXISTS idx_tournaments_completed ON tournaments(completed_at
 CREATE TABLE IF NOT EXISTS tournament_participants (
   id            TEXT PRIMARY KEY,
   tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  player_id     TEXT REFERENCES players(id),
   name          TEXT NOT NULL,
   type          TEXT NOT NULL DEFAULT 'player' CHECK(type IN ('player','team')),
   embark_id     TEXT,
   hours_played  INTEGER,
   lobby_type    TEXT CHECK(lobby_type IN ('pvp','pve','pvpve')),
   player_type   TEXT CHECK(player_type IN ('pvp','pve','pvpve')),
+  amplifier     TEXT,
+  shield        TEXT,
+  discord_role  TEXT,
   sort_order    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_participants_tournament ON tournament_participants(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_participant_player ON tournament_participants(player_id);
 
 -- Team members (only for 2×2 mode)
 CREATE TABLE IF NOT EXISTS participant_members (
@@ -123,17 +141,26 @@ CREATE INDEX IF NOT EXISTS idx_protocols_season ON protocols(season_id);
 -- ── Round Results ────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS round_results (
-  id              TEXT PRIMARY KEY,
-  tournament_id   TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-  round_number    INTEGER NOT NULL,
-  participant_id  TEXT NOT NULL REFERENCES tournament_participants(id) ON DELETE CASCADE,
-  points_earned   INTEGER NOT NULL DEFAULT 0,
-  tasks_completed TEXT,   -- JSON array of task IDs
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  id                      TEXT PRIMARY KEY,
+  tournament_id           TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  round_number            INTEGER NOT NULL,
+  participant_id          TEXT NOT NULL REFERENCES tournament_participants(id) ON DELETE CASCADE,
+  points_earned           INTEGER NOT NULL DEFAULT 0,
+  tasks_completed         TEXT,
+  map_name                TEXT,
+  map_condition           TEXT,
+  started_at              TEXT,
+  ended_at                TEXT,
+  deaths                  INTEGER DEFAULT 0,
+  loot_allowed            INTEGER DEFAULT 1,
+  crafted_keys_used       INTEGER DEFAULT 0,
+  penalty_seconds_applied INTEGER DEFAULT 0,
+  created_at              TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_round_results_tournament ON round_results(tournament_id);
 CREATE INDEX IF NOT EXISTS idx_round_results_participant ON round_results(participant_id);
+CREATE INDEX IF NOT EXISTS idx_round_map ON round_results(map_name);
 
 -- ── Round-assigned contracts ─────────────────────────────────
 
@@ -170,10 +197,30 @@ CREATE TABLE IF NOT EXISTS tournament_standings (
   participant_id TEXT NOT NULL REFERENCES tournament_participants(id) ON DELETE CASCADE,
   total_points  INTEGER NOT NULL DEFAULT 0,
   rank          INTEGER NOT NULL,
+  is_winner     INTEGER DEFAULT 0,
+  mmr_before    INTEGER,
+  mmr_after     INTEGER,
+  streak        INTEGER DEFAULT 0,
   PRIMARY KEY (tournament_id, participant_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_standings_participant ON tournament_standings(participant_id);
+CREATE INDEX IF NOT EXISTS idx_standings_winner ON tournament_standings(tournament_id, is_winner);
+
+-- ── Rewards ──────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS tournament_rewards (
+  id              TEXT PRIMARY KEY,
+  tournament_id   TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  participant_id  TEXT NOT NULL REFERENCES tournament_participants(id) ON DELETE CASCADE,
+  reward_type     TEXT NOT NULL CHECK(reward_type IN ('blueprint','weapon','key','discord_role','other')),
+  reward_name     TEXT NOT NULL,
+  giver_order     INTEGER NOT NULL DEFAULT 0,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rewards_tournament   ON tournament_rewards(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_rewards_participant  ON tournament_rewards(participant_id);
 
 -- ── Extension templates (per-tournament) ─────────────────────
 
