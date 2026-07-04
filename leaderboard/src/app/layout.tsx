@@ -64,6 +64,7 @@ export default function RootLayout({
               <a href="/" className="nav-link active">Главная</a>
               <a href="/standings" className="nav-link">Рейтинг</a>
               <a href="/archive" className="nav-link">Архив</a>
+              <a href="/rules" className="nav-link">Правила</a>
               <span className="w-px h-4 bg-[rgba(96,128,255,0.15)] mx-1" />
               <a href="/login" className="nav-link text-accent-primary">Вход</a>
             </div>
