@@ -2160,8 +2160,8 @@ app.get('/api/players', (req, res) => {
     GROUP BY tp.name
   `;
   let countSql = 'SELECT COUNT(DISTINCT name) as count FROM tournament_participants';
-  const params: any[] = [];
-  const countParams: any[] = [];
+  const params = [];
+  const countParams = [];
 
   if (search) {
     sql += ' HAVING tp.name LIKE ?';
@@ -2172,8 +2172,8 @@ app.get('/api/players', (req, res) => {
 
   sql += ' ORDER BY tp.name ASC';
 
-  if (limit) { sql += ' LIMIT ?'; params.push(parseInt(limit as string)); }
-  if (offset) { sql += ' OFFSET ?'; params.push(parseInt(offset as string)); }
+  if (limit) { sql += ' LIMIT ?'; params.push(parseInt(limit)); }
+  if (offset) { sql += ' OFFSET ?'; params.push(parseInt(offset)); }
 
   const players = query(sql, params);
   const total = queryOne(countSql, countParams);
@@ -2205,8 +2205,8 @@ app.put('/api/players/:id', (req, res) => {
   }
 
   // Update existing
-  const updates: string[] = [];
-  const params: any[] = [];
+  const updates = [];
+  const params = [];
 
   if (display_name !== undefined && display_name !== player.display_name) {
     updates.push('display_name = ?'); params.push(playerName);
