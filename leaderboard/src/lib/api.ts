@@ -242,6 +242,34 @@ export async function updateParticipant(id: string, fields: Record<string, any>,
   return fetchAdmin<any>(`/api/tournament-participants/${id}`, token, { method: 'PUT', body: JSON.stringify(fields) });
 }
 
+// ── Complications ────────────────────────────────────────────
+
+export async function createComplication(tournamentId: string, text: string, token: string) {
+  return fetchAdmin<any>(`/api/tournaments/${tournamentId}/complications`, token, { method: 'POST', body: JSON.stringify({ text }) });
+}
+
+export async function updateComplication(id: string, text: string, token: string) {
+  return fetchAdmin<any>(`/api/complications/${id}`, token, { method: 'PUT', body: JSON.stringify({ text }) });
+}
+
+export async function deleteComplication(id: string, token: string) {
+  return fetchAdmin<any>(`/api/complications/${id}`, token, { method: 'DELETE' });
+}
+
+// ── Bonus Tasks ──────────────────────────────────────────────
+
+export async function createBonusTask(tournamentId: string, text: string, points: number, token: string) {
+  return fetchAdmin<any>(`/api/tournaments/${tournamentId}/bonus-tasks`, token, { method: 'POST', body: JSON.stringify({ text, points }) });
+}
+
+export async function updateBonusTask(id: string, fields: Record<string, any>, token: string) {
+  return fetchAdmin<any>(`/api/bonus-tasks/${id}`, token, { method: 'PUT', body: JSON.stringify(fields) });
+}
+
+export async function deleteBonusTask(id: string, token: string) {
+  return fetchAdmin<any>(`/api/bonus-tasks/${id}`, token, { method: 'DELETE' });
+}
+
 // ── Player Profile ─────────────────────────────────────────
 
 export async function getPlayerStats(

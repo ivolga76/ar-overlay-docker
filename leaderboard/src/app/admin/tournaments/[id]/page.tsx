@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { getTournament } from '@/lib/api';
-import { updateParticipant, updateRound } from '@/lib/api';
-
-import { getApiBase, getAdminToken } from '@/lib/admin-helpers';
+import { getTournament, updateParticipant, updateRound } from '@/lib/api';
+import { createComplication, updateComplication, deleteComplication } from '@/lib/api';
+import { createBonusTask, updateBonusTask, deleteBonusTask } from '@/lib/api';
+import { getAdminToken } from '@/lib/admin-helpers';
 
 function getToken() { return getAdminToken(); }
 
@@ -18,6 +18,16 @@ export default function AdminTournamentDetail() {
   const [editRound, setEditRound] = useState<string | null>(null);
   const [editRoundForm, setEditRoundForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
+
+  // Complications state
+  const [newComp, setNewComp] = useState('');
+  const [editComp, setEditComp] = useState<string | null>(null);
+  const [editCompText, setEditCompText] = useState('');
+  // Bonus tasks state
+  const [newBt, setNewBt] = useState('');
+  const [newBtPoints, setNewBtPoints] = useState(2);
+  const [editBt, setEditBt] = useState<string | null>(null);
+  const [editBtFields, setEditBtFields] = useState<any>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,10 +64,78 @@ export default function AdminTournamentDetail() {
     setSaving(false);
   }
 
+  // ── Complication handlers ──
+
+  async function handleAddComp() {
+    if (!newComp.trim()) return;
+    setSaving(true);
+    try {
+      await createComplication(id as string, newComp, getToken());
+      setNewComp('');
+      load();
+    } catch (err: any) { alert(err.message); }
+    setSaving(false);
+  }
+
+  async function handleSaveComp(cid: string) {
+    if (!editCompText.trim()) return;
+    setSaving(true);
+    try {
+      await updateComplication(cid, editCompText, getToken());
+      setEditComp(null);
+      load();
+    } catch (err: any) { alert(err.message); }
+    setSaving(false);
+  }
+
+  async function handleDeleteComp(cid: string) {
+    if (!confirm('Удалить?')) return;
+    setSaving(true);
+    try {
+      await deleteComplication(cid, getToken());
+      load();
+    } catch (err: any) { alert(err.message); }
+    setSaving(false);
+  }
+
+  // ── Bonus task handlers ──
+
+  async function handleAddBt() {
+    if (!newBt.trim()) return;
+    setSaving(true);
+    try {
+      await createBonusTask(id as string, newBt, newBtPoints, getToken());
+      setNewBt('');
+      setNewBtPoints(2);
+      load();
+    } catch (err: any) { alert(err.message); }
+    setSaving(false);
+  }
+
+  async function handleSaveBt(bid: string) {
+    setSaving(true);
+    try {
+      await updateBonusTask(bid, editBtFields, getToken());
+      setEditBt(null);
+      load();
+    } catch (err: any) { alert(err.message); }
+    setSaving(false);
+  }
+
+  async function handleDeleteBt(bid: string) {
+    if (!confirm('Удалить?')) return;
+    setSaving(true);
+    try {
+      await deleteBonusTask(bid, getToken());
+      load();
+    } catch (err: any) { alert(err.message); }
+    setSaving(false);
+  }
+
   if (loading) return <div className="py-10"><div className="skeleton w-60 h-6 mb-4" /><div className="skeleton w-full h-60" /></div>;
   if (!data) return <p className="text-text-muted py-10">Турнир не найден</p>;
 
-  const { tournament, participants = [], rounds = [], standings = [] } = data;
+  const { tournament, participants = [], rounds = [], standings = [], complications = [], bonusTasks = [] } = data;
 
   const statusLabel: Record<string, string> = { draft: 'Черновик', active: 'Активен', completed: 'Завершён' };
 
@@ -114,6 +192,67 @@ export default function AdminTournamentDetail() {
             );
           })}
           {participants.length === 0 && <p className="text-text-muted text-sm py-4 text-center">Нет участников</p>}
+        </div>
+      </div>
+
+      {/* Complications */}
+      <div className="mb-8">
+        <h2 className="heading-label mb-3">Усложнения ({complications.length})</h2>
+        <div className="flex flex-col gap-1">
+          {complications.map((c: any) => (
+            <div key={c.id} className="dark-panel p-3 flex items-center gap-3 text-sm">
+              {editComp === c.id ? (
+                <>
+                  <input value={editCompText} onChange={e => setEditCompText(e.target.value)} className="flex-1 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" placeholder="Текст усложнения" />
+                  <button onClick={() => handleSaveComp(c.id)} disabled={saving} className="btn-ghost text-xs px-2">✓</button>
+                  <button onClick={() => setEditComp(null)} className="btn-ghost text-xs px-2">✕</button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-text-primary">{c.text}</span>
+                  <button onClick={() => { setEditComp(c.id); setEditCompText(c.text); }} className="btn-ghost text-xs px-2">✎</button>
+                  <button onClick={() => handleDeleteComp(c.id)} className="btn-ghost text-xs px-2 text-red-400">🗑</button>
+                </>
+              )}
+            </div>
+          ))}
+          {/* Add new */}
+          <div className="dark-panel p-3 flex items-center gap-2 text-sm">
+            <input value={newComp} onChange={e => setNewComp(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddComp()} className="flex-1 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" placeholder="Новое усложнение..." />
+            <button onClick={handleAddComp} disabled={saving || !newComp.trim()} className="btn-ghost text-xs px-3">+ Добавить</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bonus Tasks */}
+      <div className="mb-8">
+        <h2 className="heading-label mb-3">Бонусные задания ({bonusTasks.length})</h2>
+        <div className="flex flex-col gap-1">
+          {bonusTasks.map((bt: any) => (
+            <div key={bt.id} className="dark-panel p-3 flex items-center gap-3 text-sm">
+              {editBt === bt.id ? (
+                <>
+                  <input value={editBtFields.text || bt.text} onChange={e => setEditBtFields({...editBtFields, text: e.target.value})} className="flex-1 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" placeholder="Текст задания" />
+                  <input type="number" value={editBtFields.points ?? bt.points} onChange={e => setEditBtFields({...editBtFields, points: +e.target.value})} className="w-16 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" />
+                  <button onClick={() => handleSaveBt(bt.id)} disabled={saving} className="btn-ghost text-xs px-2">✓</button>
+                  <button onClick={() => setEditBt(null)} className="btn-ghost text-xs px-2">✕</button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-text-primary">{bt.text}</span>
+                  <span className="mono-stat text-xs text-accent-primary w-12">{bt.points} pts</span>
+                  <button onClick={() => { setEditBt(bt.id); setEditBtFields({ text: bt.text, points: bt.points }); }} className="btn-ghost text-xs px-2">✎</button>
+                  <button onClick={() => handleDeleteBt(bt.id)} className="btn-ghost text-xs px-2 text-red-400">🗑</button>
+                </>
+              )}
+            </div>
+          ))}
+          {/* Add new */}
+          <div className="dark-panel p-3 flex items-center gap-2 text-sm">
+            <input value={newBt} onChange={e => setNewBt(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddBt()} className="flex-1 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" placeholder="Новое бонусное задание..." />
+            <input type="number" value={newBtPoints} onChange={e => setNewBtPoints(+e.target.value)} className="w-16 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" min={1} />
+            <button onClick={handleAddBt} disabled={saving || !newBt.trim()} className="btn-ghost text-xs px-3">+ Добавить</button>
+          </div>
         </div>
       </div>
 

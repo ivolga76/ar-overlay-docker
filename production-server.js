@@ -85,6 +85,21 @@ function findUserById(id) {
 
 const gameFields = GAME_FIELDS;
 
+// ── Player identity helper ────────────────────────────────────
+
+/** Find or create a player record by display_name. Returns the player row. */
+function findOrCreatePlayer(name) {
+  const playerName = (name || '').trim();
+  if (!playerName) return null;
+  let player = queryOne('SELECT * FROM players WHERE display_name = ?', [playerName]);
+  if (!player) {
+    const id = randomUUID();
+    run('INSERT INTO players (id, display_name) VALUES (?, ?)', [id, playerName]);
+    player = queryOne('SELECT * FROM players WHERE id = ?', [id]);
+  }
+  return player;
+}
+
 const userStates = new Map();
 const userLastAccess = new Map(); // userId → timestamp for TTL cleanup
 
@@ -478,13 +493,16 @@ app.post('/api/tournaments', (req, res) => {
     for (let i = 0; i < participants.length; i++) {
       const p = participants[i];
       const pid = randomUUID();
+      const player = findOrCreatePlayer(p.name);
       run(
-        'INSERT INTO tournament_participants (id, tournament_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?)',
-        [pid, tournamentId, p.name || `Участник ${i + 1}`, p.type || 'player', i]
+        'INSERT INTO tournament_participants (id, tournament_id, player_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+        [pid, tournamentId, player?.id || null, p.name || `Участник ${i + 1}`, p.type || 'player', i]
       );
       if (p.type === 'team' && Array.isArray(p.players)) {
         for (let j = 0; j < p.players.length; j++) {
           const pn = typeof p.players[j] === 'string' ? p.players[j] : p.players[j].name;
+          // Link team members to players table too
+          const memberPlayer = findOrCreatePlayer(pn);
           run(
             'INSERT INTO participant_members (participant_id, player_name, sort_order) VALUES (?, ?, ?)',
             [pid, pn || `Игрок ${j + 1}`, j]
@@ -496,22 +514,27 @@ app.post('/api/tournaments', (req, res) => {
     // Default participants
     if (tournamentMode === '1x1') {
       for (let i = 0; i < 2; i++) {
+        const name = `Игрок ${i + 1}`;
+        const player = findOrCreatePlayer(name);
         run(
-          'INSERT INTO tournament_participants (id, tournament_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?)',
-          [randomUUID(), tournamentId, `Игрок ${i + 1}`, 'player', i]
+          'INSERT INTO tournament_participants (id, tournament_id, player_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+          [randomUUID(), tournamentId, player?.id || null, name, 'player', i]
         );
       }
     } else {
       for (let i = 0; i < 2; i++) {
         const pid = randomUUID();
+        const teamName = `Команда ${i + 1}`;
         run(
-          'INSERT INTO tournament_participants (id, tournament_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?)',
-          [pid, tournamentId, `Команда ${i + 1}`, 'team', i]
+          'INSERT INTO tournament_participants (id, tournament_id, player_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+          [pid, tournamentId, null, teamName, 'team', i]
         );
         for (let j = 0; j < 2; j++) {
+          const memberName = `Игрок ${j + 1}`;
+          const memberPlayer = findOrCreatePlayer(memberName);
           run(
             'INSERT INTO participant_members (participant_id, player_name, sort_order) VALUES (?, ?, ?)',
-            [pid, `Игрок ${j + 1}`, j]
+            [pid, memberName, j]
           );
         }
       }
@@ -672,6 +695,136 @@ app.delete('/api/tournaments/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Tournament complications CRUD ───────────────────────────────
+
+// GET /api/tournaments/:id/complications
+app.get('/api/tournaments/:id/complications', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+  const complications = query(
+    'SELECT * FROM tournament_complications WHERE tournament_id = ? ORDER BY sort_order',
+    [owner.tournament.id]
+  );
+  res.json({ complications });
+});
+
+// POST /api/tournaments/:id/complications
+app.post('/api/tournaments/:id/complications', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+  const { text } = req.body || {};
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Текст обязателен' });
+  const id = randomUUID();
+  const maxOrder = queryOne(
+    'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM tournament_complications WHERE tournament_id = ?',
+    [owner.tournament.id]
+  );
+  run(
+    'INSERT INTO tournament_complications (id, tournament_id, text, sort_order) VALUES (?, ?, ?, ?)',
+    [id, owner.tournament.id, text.trim(), maxOrder?.next || 0]
+  );
+  saveToDisk();
+  const created = queryOne('SELECT * FROM tournament_complications WHERE id = ?', [id]);
+  res.status(201).json({ complication: created });
+});
+
+// PUT /api/complications/:id
+app.put('/api/complications/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const c = queryOne(
+    'SELECT tc.*, t.user_id FROM tournament_complications tc JOIN tournaments t ON tc.tournament_id = t.id WHERE tc.id = ?',
+    [req.params.id]
+  );
+  if (!c) return res.status(404).json({ error: 'Не найдено' });
+  if (c.user_id !== user.id) return res.status(403).json({ error: 'Доступ запрещён' });
+  const { text } = req.body || {};
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Текст обязателен' });
+  run('UPDATE tournament_complications SET text = ? WHERE id = ?', [text.trim(), c.id]);
+  saveToDisk();
+  res.json({ complication: queryOne('SELECT * FROM tournament_complications WHERE id = ?', [c.id]) });
+});
+
+// DELETE /api/complications/:id
+app.delete('/api/complications/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const c = queryOne(
+    'SELECT tc.*, t.user_id FROM tournament_complications tc JOIN tournaments t ON tc.tournament_id = t.id WHERE tc.id = ?',
+    [req.params.id]
+  );
+  if (!c) return res.status(404).json({ error: 'Не найдено' });
+  if (c.user_id !== user.id) return res.status(403).json({ error: 'Доступ запрещён' });
+  run('DELETE FROM tournament_complications WHERE id = ?', [c.id]);
+  saveToDisk();
+  res.json({ ok: true });
+});
+
+// ── Tournament bonus tasks CRUD ─────────────────────────────────
+
+// GET /api/tournaments/:id/bonus-tasks
+app.get('/api/tournaments/:id/bonus-tasks', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+  const bonusTasks = query(
+    'SELECT * FROM tournament_bonus_tasks WHERE tournament_id = ? ORDER BY sort_order',
+    [owner.tournament.id]
+  );
+  res.json({ bonusTasks });
+});
+
+// POST /api/tournaments/:id/bonus-tasks
+app.post('/api/tournaments/:id/bonus-tasks', (req, res) => {
+  const owner = requireOwnership(req, res, req.params.id);
+  if (!owner) return;
+  const { text, points } = req.body || {};
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Текст обязателен' });
+  const id = randomUUID();
+  const maxOrder = queryOne(
+    'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM tournament_bonus_tasks WHERE tournament_id = ?',
+    [owner.tournament.id]
+  );
+  run(
+    'INSERT INTO tournament_bonus_tasks (id, tournament_id, text, points, sort_order) VALUES (?, ?, ?, ?, ?)',
+    [id, owner.tournament.id, text.trim(), points || 2, maxOrder?.next || 0]
+  );
+  saveToDisk();
+  const created = queryOne('SELECT * FROM tournament_bonus_tasks WHERE id = ?', [id]);
+  res.status(201).json({ bonusTask: created });
+});
+
+// PUT /api/bonus-tasks/:id
+app.put('/api/bonus-tasks/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const bt = queryOne(
+    'SELECT tb.*, t.user_id FROM tournament_bonus_tasks tb JOIN tournaments t ON tb.tournament_id = t.id WHERE tb.id = ?',
+    [req.params.id]
+  );
+  if (!bt) return res.status(404).json({ error: 'Не найдено' });
+  if (bt.user_id !== user.id) return res.status(403).json({ error: 'Доступ запрещён' });
+  const { text, points } = req.body || {};
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Текст обязателен' });
+  run('UPDATE tournament_bonus_tasks SET text = ?, points = ? WHERE id = ?', [text.trim(), points ?? bt.points, bt.id]);
+  saveToDisk();
+  res.json({ bonusTask: queryOne('SELECT * FROM tournament_bonus_tasks WHERE id = ?', [bt.id]) });
+});
+
+// DELETE /api/bonus-tasks/:id
+app.delete('/api/bonus-tasks/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const bt = queryOne(
+    'SELECT tb.*, t.user_id FROM tournament_bonus_tasks tb JOIN tournaments t ON tb.tournament_id = t.id WHERE tb.id = ?',
+    [req.params.id]
+  );
+  if (!bt) return res.status(404).json({ error: 'Не найдено' });
+  if (bt.user_id !== user.id) return res.status(403).json({ error: 'Доступ запрещён' });
+  run('DELETE FROM tournament_bonus_tasks WHERE id = ?', [bt.id]);
+  saveToDisk();
+  res.json({ ok: true });
+});
+
 // ── Tournament lifecycle ───────────────────────────────────────
 
 // POST /api/tournaments/:id/start — start tournament
@@ -730,16 +883,18 @@ app.post('/api/tournaments/:id/complete', (req, res) => {
 
       const pid = randomUUID();
       const pType = userState.mode === '2x2' ? 'team' : 'player';
+      const player = pType === 'player' ? findOrCreatePlayer(spName) : null;
       const maxOrder = existingParticipants.length + participantsFlushed;
       run(
-        'INSERT INTO tournament_participants (id, tournament_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?)',
-        [pid, tournament.id, spName, pType, maxOrder]
+        'INSERT INTO tournament_participants (id, tournament_id, player_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+        [pid, tournament.id, player?.id || null, spName, pType, maxOrder]
       );
 
       // If team, also flush members
       if (pType === 'team' && Array.isArray(sp.players)) {
         for (let j = 0; j < sp.players.length; j++) {
           const memberName = (sp.players[j].name || sp.players[j] || '').trim();
+          const memberPlayer = findOrCreatePlayer(memberName);
           if (memberName) {
             run(
               'INSERT INTO participant_members (participant_id, player_name, sort_order) VALUES (?, ?, ?)',
