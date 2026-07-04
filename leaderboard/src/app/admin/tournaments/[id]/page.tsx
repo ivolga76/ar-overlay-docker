@@ -181,10 +181,10 @@ export default function AdminTournamentDetail() {
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center gap-3 text-xs text-text-muted">
-                    {p.embark_id && <span>🎮 {p.embark_id}</span>}
-                    {p.discord_role && <span>💬 {p.discord_role}</span>}
-                    {p.amplifier && <span>⚡ {p.amplifier}</span>}
-                    {p.shield && <span>🛡 {p.shield}</span>}
+                    {p.embark_id && <span>Embark: {p.embark_id}</span>}
+                    {p.discord_role && <span>Discord: {p.discord_role}</span>}
+                    {p.amplifier && <span>Amp: {p.amplifier}</span>}
+                    {p.shield && <span>Shield: {p.shield}</span>}
                     <button onClick={() => { setEditPart(p.id); setEditForm(p); }} className="btn-ghost text-xs px-2 ml-auto">✎ Редактировать</button>
                   </div>
                 )}
@@ -211,7 +211,7 @@ export default function AdminTournamentDetail() {
                 <>
                   <span className="flex-1 text-text-primary">{c.text}</span>
                   <button onClick={() => { setEditComp(c.id); setEditCompText(c.text); }} className="btn-ghost text-xs px-2">✎</button>
-                  <button onClick={() => handleDeleteComp(c.id)} className="btn-ghost text-xs px-2 text-red-400">🗑</button>
+                  <button onClick={() => handleDeleteComp(c.id)} className="btn-ghost text-xs px-2 text-red-400">×</button>
                 </>
               )}
             </div>
@@ -242,7 +242,7 @@ export default function AdminTournamentDetail() {
                   <span className="flex-1 text-text-primary">{bt.text}</span>
                   <span className="mono-stat text-xs text-accent-primary w-12">{bt.points} pts</span>
                   <button onClick={() => { setEditBt(bt.id); setEditBtFields({ text: bt.text, points: bt.points }); }} className="btn-ghost text-xs px-2">✎</button>
-                  <button onClick={() => handleDeleteBt(bt.id)} className="btn-ghost text-xs px-2 text-red-400">🗑</button>
+                  <button onClick={() => handleDeleteBt(bt.id)} className="btn-ghost text-xs px-2 text-red-400">×</button>
                 </>
               )}
             </div>
@@ -278,8 +278,8 @@ export default function AdminTournamentDetail() {
                 </div>
               ) : (
                 <div className="flex-1 flex items-center gap-3 text-xs text-text-muted">
-                  {r.map_name && <span>🗺 {r.map_name}</span>}
-                  {r.deaths > 0 && <span>💀 {r.deaths}</span>}
+                  {r.map_name && <span>Map: {r.map_name}</span>}
+                  {r.deaths > 0 && <span>Deaths: {r.deaths}</span>}
                   <button onClick={() => { setEditRound(r.id); setEditRoundForm(r); }} className="btn-ghost text-xs px-2 ml-auto">✎</button>
                 </div>
               )}

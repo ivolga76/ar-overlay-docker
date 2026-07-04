@@ -4,12 +4,12 @@ import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/LogoutButton';
 
 const navItems = [
-  { href: '/admin', label: 'Дашборд', icon: '📊' },
-  { href: '/admin/seasons', label: 'Сезоны', icon: '📅' },
-  { href: '/admin/contracts', label: 'Контракты', icon: '📝' },
-  { href: '/admin/protocols', label: 'Протоколы', icon: '⚠️' },
-  { href: '/admin/tournaments', label: 'Турниры', icon: '🏆' },
-  { href: '/admin/players', label: 'Игроки', icon: '👤' },
+  { href: '/admin', label: 'Дашборд' },
+  { href: '/admin/seasons', label: 'Сезоны' },
+  { href: '/admin/contracts', label: 'Контракты' },
+  { href: '/admin/protocols', label: 'Протоколы' },
+  { href: '/admin/tournaments', label: 'Турниры' },
+  { href: '/admin/players', label: 'Игроки' },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -41,7 +41,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               href={item.href}
               className="nav-link text-sm py-2"
             >
-              <span className="mr-2">{item.icon}</span>
               {item.label}
             </Link>
           ))}

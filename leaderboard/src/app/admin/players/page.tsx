@@ -85,8 +85,8 @@ export default function AdminPlayersPage() {
                 </div>
               ) : (
                 <div className="flex-1 flex items-center gap-4 text-xs text-text-muted">
-                  {p.embark_id ? <span>🎮 {p.embark_id}</span> : <span className="opacity-40">Embark ID: —</span>}
-                  {p.discord_name ? <span>💬 {p.discord_name}</span> : <span className="opacity-40">Discord: —</span>}
+                  {p.embark_id ? <span>Embark: {p.embark_id}</span> : <span className="opacity-40">Embark ID: —</span>}
+                  {p.discord_name ? <span>Discord: {p.discord_name}</span> : <span className="opacity-40">Discord: —</span>}
                   <span className="opacity-40">Турниров: {p.tournament_count || 0}</span>
                   <button onClick={() => startEdit(p)} className="btn-ghost text-xs px-2 ml-auto">✎</button>
                 </div>

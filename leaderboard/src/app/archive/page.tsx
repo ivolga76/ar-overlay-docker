@@ -98,25 +98,25 @@ export default async function ArchivePage() {
                     href={`/season/${season.id}`}
                     className="dark-panel dark-panel-hover p-3 text-center text-sm font-heading font-bold text-text-primary hover:text-accent-primary transition-colors no-underline"
                   >
-                    📊 Обзор
+                    Обзор
                   </Link>
                   <Link
                     href={`/season/${season.id}/1x1`}
                     className="dark-panel dark-panel-hover p-3 text-center text-sm font-heading font-bold text-text-primary hover:text-accent-primary transition-colors no-underline"
                   >
-                    ⚔️ 1×1
+                    1×1
                   </Link>
                   <Link
                     href={`/season/${season.id}/2x2`}
                     className="dark-panel dark-panel-hover p-3 text-center text-sm font-heading font-bold text-text-primary hover:text-accent-primary transition-colors no-underline"
                   >
-                    🛡️ 2×2
+                    2×2
                   </Link>
                   <Link
                     href={`/season/${season.id}/matches`}
                     className="dark-panel dark-panel-hover p-3 text-center text-sm font-heading font-bold text-text-primary hover:text-accent-primary transition-colors no-underline"
                   >
-                    📜 Матчи
+                    Матчи
                   </Link>
                 </div>
               </DarkPanel>

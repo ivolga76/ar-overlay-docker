@@ -47,7 +47,6 @@ export function StandingsTable({
           <div className="relative z-10">
             <p className="eyebrow mb-3">ТУРНИРНАЯ ТАБЛИЦА</p>
             <h1 className="heading-lg mb-1 crt-glow">
-              <span className="inline-block mr-3 text-accent-gold crt-glow-gold">🏆</span>
               {title}
             </h1>
           {subtitle && (

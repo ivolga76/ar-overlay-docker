@@ -119,28 +119,28 @@ export default async function HomePage() {
           <div className="feature-grid">
             <ScrollRevealItem>
               <FeatureCard
-                icon="🏆"
+                icon=""
                 title="Рейтинг игроков"
                 description="MMR-система: очки × победы × поражения. Глобальный топ и таблицы турниров."
               />
             </ScrollRevealItem>
             <ScrollRevealItem>
               <FeatureCard
-                icon="⚔️"
+                icon=""
                 title="1×1 и 2×2"
                 description="Соло-дуэли и командные битвы. Переключайтесь между режимами в один клик."
               />
             </ScrollRevealItem>
             <ScrollRevealItem>
               <FeatureCard
-                icon="📡"
+                icon=""
                 title="Live-обновления"
                 description="Турнирная таблица обновляется автоматически. Следите за результатами в реальном времени."
               />
             </ScrollRevealItem>
             <ScrollRevealItem>
               <FeatureCard
-                icon="🎨"
+                icon=""
                 title="Дизайн ARC Raiders"
                 description="Sci-fi эстетика мира Speranza. Неон, CRT-свечение, тёмная палитра."
               />

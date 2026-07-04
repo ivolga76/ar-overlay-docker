@@ -77,28 +77,28 @@ export default async function SeasonPage({ params }: Props) {
             <FeatureCard
               title="Рейтинг 1×1"
               description="Индивидуальный рейтинг игроков в формате 1 на 1. MMR, победы, поражения."
-              icon="⚔️"
+              icon=""
             />
           </Link>
           <Link href={`/season/${seasonId}/2x2`}>
             <FeatureCard
               title="Рейтинг 2×2"
               description="Командный рейтинг в формате 2 на 2. Кооперативные сражения."
-              icon="🛡️"
+              icon=""
             />
           </Link>
           <Link href={`/season/${seasonId}/matches`}>
             <FeatureCard
               title="История матчей"
               description="Все завершённые матчи сезона. Победители, участники, даты."
-              icon="📜"
+              icon=""
             />
           </Link>
           <Link href={`/season/${seasonId}/teams`}>
             <FeatureCard
               title="Составы команд"
               description="Все команды 2×2, участвовавшие в сезоне. Составы и результаты."
-              icon="👥"
+              icon=""
             />
           </Link>
         </div>
