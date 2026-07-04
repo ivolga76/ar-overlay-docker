@@ -80,14 +80,14 @@ export function PlayerRow({ entry, index }: PlayerRowProps) {
             href={`/player/${entry.participantId}`}
             className={`
               heading-lg text-base truncate
-              hover:text-accent-cyan transition-colors
+              hover:text-accent-primary transition-colors
               ${isTop3 ? 'crt-glow-gold' : 'text-text-primary'}
             `}
           >
             {entry.nickname}
           </Link>
           {entry.isTeam && (
-            <span className="text-[10px] uppercase tracking-wider text-accent-cyan font-heading font-bold">
+            <span className="text-[10px] uppercase tracking-wider text-accent-primary font-heading font-bold">
               team
             </span>
           )}

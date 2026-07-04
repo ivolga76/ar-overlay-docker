@@ -41,20 +41,23 @@ export function StandingsTable({
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 pb-12">
       {/* Header */}
-      <RainbowStripe className="rounded-lg overflow-hidden mb-6 crt-scanlines">
-        <div className="px-6 py-10 text-center">
-          <p className="eyebrow mb-3">ТУРНИРНАЯ ТАБЛИЦА</p>
-          <h1 className="heading-lg mb-1 crt-glow">
-            <span className="inline-block mr-3 text-accent-gold crt-glow-gold">🏆</span>
-            {title}
-          </h1>
+      <div className="dark-panel overflow-hidden mb-6">
+        <div className="px-6 py-10 text-center relative">
+          <div className="absolute inset-0 animated-neon-bg" />
+          <div className="relative z-10">
+            <p className="eyebrow mb-3">ТУРНИРНАЯ ТАБЛИЦА</p>
+            <h1 className="heading-lg mb-1 crt-glow">
+              <span className="inline-block mr-3 text-accent-gold crt-glow-gold">🏆</span>
+              {title}
+            </h1>
           {subtitle && (
             <p className="mt-3 text-text-muted text-sm max-w-lg mx-auto leading-relaxed">
               {subtitle}
             </p>
           )}
+            </div>
+          </div>
         </div>
-      </RainbowStripe>
 
       {/* Mode Tabs */}
       <div className="flex justify-end mb-5">

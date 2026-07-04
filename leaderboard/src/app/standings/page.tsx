@@ -60,7 +60,7 @@ export default async function StandingsPage({ searchParams }: Props) {
             </p>
           </div>
           <div className="text-center">
-            <span className="mono-stat text-xl text-accent-magenta font-bold">
+            <span className="mono-stat text-xl text-accent-primary font-bold">
               {stats.topMmr}
             </span>
             <p className="text-[10px] uppercase tracking-wider text-text-muted mt-1">
@@ -74,9 +74,7 @@ export default async function StandingsPage({ searchParams }: Props) {
           <div className="flex justify-center gap-2 pb-4 flex-wrap">
             <a
               href="/standings"
-              className={`text-xs px-3 py-1 rounded transition-colors ${
-                !season ? 'bg-accent-cyan text-bg-primary font-bold' : 'text-text-muted hover:text-text-primary'
-              }`}
+              className={`chip text-xs ${!season ? 'season-tab active' : ''}`}
             >
               Все сезоны
             </a>
@@ -84,9 +82,7 @@ export default async function StandingsPage({ searchParams }: Props) {
               <a
                 key={s.id}
                 href={`/standings?season=${s.id}`}
-                className={`text-xs px-3 py-1 rounded transition-colors ${
-                  season === s.id ? 'bg-accent-cyan text-bg-primary font-bold' : 'text-text-muted hover:text-text-primary'
-                }`}
+                className={`chip text-xs ${season === s.id ? 'season-tab active' : ''}`}
               >
                 {s.name}
               </a>
