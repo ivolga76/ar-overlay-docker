@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { RainbowBar } from '@/components/RainbowBar';
+import { LogoutButton } from '@/components/LogoutButton';
 
 const navItems = [
   { href: '/admin', label: 'Дашборд', icon: '📊' },
@@ -51,17 +51,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/" className="nav-link text-xs py-2">
             ← На сайт
           </Link>
-          <a
-            href="/login"
-            className="nav-link text-xs py-2 text-text-muted"
-            onClick={() => {
-              if (typeof document !== 'undefined') {
-                document.cookie = 'admin_token=; path=/; max-age=0';
-              }
-            }}
-          >
-            Выйти
-          </a>
+          <LogoutButton />
         </div>
       </aside>
 
