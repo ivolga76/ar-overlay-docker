@@ -1494,6 +1494,30 @@ app.get('/api/profile', (req, res) => {
   });
 });
 
+// ── Rules API ───────────────────────────────────────────────────
+
+const RULES_FILE = join(DATA_DIR, 'rules.txt');
+
+// GET /api/rules — public: return rules text
+app.get('/api/rules', (req, res) => {
+  try {
+    if (existsSync(RULES_FILE)) {
+      return res.json({ text: readFileSync(RULES_FILE, 'utf8') });
+    }
+    res.json({ text: '' });
+  } catch { res.json({ text: '' }); }
+});
+
+// PUT /api/rules — admin: save rules text
+app.put('/api/rules', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  const { text } = req.body || {};
+  if (typeof text !== 'string') return res.status(400).json({ error: 'Поле text обязательно' });
+  writeFileSync(RULES_FILE, text, 'utf8');
+  res.json({ ok: true });
+});
+
 // ── Seasons API ────────────────────────────────────────────────
 
 // GET /api/seasons — list seasons (public, optional ?status=active|archived)

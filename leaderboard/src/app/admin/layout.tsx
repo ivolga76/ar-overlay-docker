@@ -10,6 +10,7 @@ const navItems = [
   { href: '/admin/protocols', label: 'Протоколы' },
   { href: '/admin/tournaments', label: 'Турниры' },
   { href: '/admin/players', label: 'Игроки' },
+  { href: '/admin/rules', label: 'Правила' },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
