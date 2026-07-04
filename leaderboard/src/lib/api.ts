@@ -199,6 +199,42 @@ export async function getRatings(
   return data.ratings ?? [];
 }
 
+// ── Admin (cookie-based auth) ─────────────────────────────
+
+async function fetchAdmin<T>(path: string, token: string, options?: RequestInit): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', Cookie: `admin_token=${token}` },
+    ...options,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `API error ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getAdminStats(token: string) {
+  return fetchAdmin<any>('/api/admin/stats', token, { next: { revalidate: 0 } });
+}
+
+export async function getAdminPlayers(token: string, search?: string) {
+  const params = search ? `?search=${encodeURIComponent(search)}` : '';
+  return fetchAdmin<{ players: any[]; total: number }>(`/api/players${params}`, token);
+}
+
+export async function updatePlayer(id: string, fields: Record<string, any>, token: string) {
+  return fetchAdmin<any>(`/api/players/${id}`, token, { method: 'PUT', body: JSON.stringify(fields) });
+}
+
+export async function updateRound(id: string, fields: Record<string, any>, token: string) {
+  return fetchAdmin<any>(`/api/rounds/${id}`, token, { method: 'PUT', body: JSON.stringify(fields) });
+}
+
+export async function updateParticipant(id: string, fields: Record<string, any>, token: string) {
+  return fetchAdmin<any>(`/api/tournament-participants/${id}`, token, { method: 'PUT', body: JSON.stringify(fields) });
+}
+
 // ── Player Profile ─────────────────────────────────────────
 
 export async function getPlayerStats(

@@ -55,12 +55,25 @@ function cleanupExpiredSessions() {
 }
 
 function authenticate(req) {
+  // 1. Try Authorization header (SPA admin, API clients)
   const header = req.headers['authorization'];
-  if (!header || !header.startsWith('Bearer ')) return null;
-  const token = header.slice(7);
-  const session = findSession(token);
-  if (!session) return null;
-  return findUserById(session.user_id);
+  if (header && header.startsWith('Bearer ')) {
+    const token = header.slice(7);
+    const session = findSession(token);
+    if (session) return findUserById(session.user_id);
+  }
+
+  // 2. Try cookie (leaderboard admin)
+  const cookieHeader = req.headers['cookie'];
+  if (cookieHeader) {
+    const match = cookieHeader.match(/(?:^|;\s*)admin_token=([^;]+)/);
+    if (match) {
+      const session = findSession(match[1]);
+      if (session) return findUserById(session.user_id);
+    }
+  }
+
+  return null;
 }
 
 function findUserById(id) {
@@ -695,10 +708,58 @@ app.post('/api/tournaments/:id/complete', (req, res) => {
     return res.status(400).json({ error: 'Турнир должен быть активным для завершения' });
   }
 
-  // Sync userState rounds → round_results (if user has active game state)
+  // Sync userState → DB: flush new participants first, then round results
   const userState = userStates.get(owner.user.id);
+
+  // ── Step 0: sync participants from userState into tournament_participants ──
+  // During the game, the admin can add players via the overlay.
+  // Those players exist only in userState (in-memory), not in the DB.
+  // We auto-create them here so their round results can be matched.
+  if (userState) {
+    const existingParticipants = query(
+      'SELECT id, name FROM tournament_participants WHERE tournament_id = ?',
+      [tournament.id]
+    );
+    const existingNames = new Set(existingParticipants.map(p => p.name.toLowerCase().trim()));
+    const statePlayers = userState.mode === '2x2' ? (userState.teams || []) : (userState.players || []);
+    let participantsFlushed = 0;
+
+    for (const sp of statePlayers) {
+      const spName = (sp.name || '').trim();
+      if (!spName || existingNames.has(spName.toLowerCase())) continue;
+
+      const pid = randomUUID();
+      const pType = userState.mode === '2x2' ? 'team' : 'player';
+      const maxOrder = existingParticipants.length + participantsFlushed;
+      run(
+        'INSERT INTO tournament_participants (id, tournament_id, name, type, sort_order) VALUES (?, ?, ?, ?, ?)',
+        [pid, tournament.id, spName, pType, maxOrder]
+      );
+
+      // If team, also flush members
+      if (pType === 'team' && Array.isArray(sp.players)) {
+        for (let j = 0; j < sp.players.length; j++) {
+          const memberName = (sp.players[j].name || sp.players[j] || '').trim();
+          if (memberName) {
+            run(
+              'INSERT INTO participant_members (participant_id, player_name, sort_order) VALUES (?, ?, ?)',
+              [pid, memberName, j]
+            );
+          }
+        }
+      }
+      participantsFlushed++;
+    }
+
+    if (participantsFlushed > 0) {
+      saveToDisk();
+      console.log(`[api] flushed ${participantsFlushed} new participant(s) from userState for tournament "${tournament.name}"`);
+    }
+  }
+
+  // ── Step 1: sync userState rounds → round_results ──
   if (userState && Array.isArray(userState.rounds) && userState.rounds.length > 0) {
-    // Build name→id mapping for participants
+    // Build name→id mapping for participants (now includes flushed ones)
     const participants = query(
       'SELECT id, name FROM tournament_participants WHERE tournament_id = ?',
       [tournament.id]
@@ -2030,6 +2091,185 @@ function getImportedRatings(seasonId, mode) {
   );
   return rows;
 }
+
+// ── Admin API ──────────────────────────────────────────────────
+
+// GET /api/admin/stats — aggregated counts for admin dashboard
+app.get('/api/admin/stats', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const activeSeasons = query("SELECT COUNT(*) as count FROM seasons WHERE status = 'active'");
+  const totalSeasons = queryOne('SELECT COUNT(*) as count FROM seasons');
+  const totalTournaments = queryOne('SELECT COUNT(*) as count FROM tournaments');
+  const activeTournaments = queryOne("SELECT COUNT(*) as count FROM tournaments WHERE status = 'active'");
+  const completedTournaments = queryOne("SELECT COUNT(*) as count FROM tournaments WHERE status = 'completed'");
+  const totalPlayers = queryOne('SELECT COUNT(*) as count FROM players');
+  const totalParticipants = queryOne('SELECT COUNT(*) as count FROM tournament_participants');
+  const totalRounds = queryOne('SELECT COUNT(*) as count FROM round_results');
+
+  // Last completed tournament
+  const lastTournament = queryOne(
+    `SELECT t.id, t.name, t.mode, t.completed_at, u.display_name as organizer_name
+     FROM tournaments t JOIN users u ON t.user_id = u.id
+     WHERE t.status = 'completed' ORDER BY t.completed_at DESC LIMIT 1`
+  );
+
+  // User's tournaments count
+  const myTournaments = queryOne(
+    'SELECT COUNT(*) as count FROM tournaments WHERE user_id = ?',
+    [user.id]
+  );
+
+  res.json({
+    seasons: { total: totalSeasons.count, active: activeSeasons[0].count },
+    tournaments: {
+      total: totalTournaments.count,
+      active: activeTournaments.count,
+      completed: completedTournaments.count,
+      my: myTournaments.count,
+    },
+    players: {
+      total: totalPlayers.count,
+      participants: totalParticipants.count,
+    },
+    rounds: totalRounds.count,
+    lastTournament,
+  });
+});
+
+// GET /api/players — list players (with optional search)
+app.get('/api/players', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const { search, limit, offset } = req.query;
+  let sql = 'SELECT p.*, (SELECT COUNT(*) FROM tournament_participants tp WHERE tp.player_id = p.id) as tournament_count FROM players p';
+  const params = [];
+
+  if (search) {
+    sql += ' WHERE p.display_name LIKE ?';
+    params.push(`%${search}%`);
+  }
+
+  sql += ' ORDER BY p.display_name ASC';
+
+  if (limit) { sql += ' LIMIT ?'; params.push(parseInt(limit)); }
+  if (offset) { sql += ' OFFSET ?'; params.push(parseInt(offset)); }
+
+  const players = query(sql, params);
+  const total = queryOne('SELECT COUNT(*) as count FROM players');
+
+  res.json({ players, total: total?.count || 0 });
+});
+
+// PUT /api/players/:id — update player fields
+app.put('/api/players/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const player = queryOne('SELECT * FROM players WHERE id = ?', [req.params.id]);
+  if (!player) {
+    return res.status(404).json({ error: 'Игрок не найден' });
+  }
+
+  const { display_name, embark_id, discord_name } = req.body || {};
+  const updates = [];
+  const params = [];
+
+  if (display_name !== undefined) { updates.push('display_name = ?'); params.push(display_name.trim()); }
+  if (embark_id !== undefined) { updates.push('embark_id = ?'); params.push(embark_id || null); }
+  if (discord_name !== undefined) { updates.push('discord_name = ?'); params.push(discord_name || null); }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'Нет полей для обновления' });
+  }
+
+  params.push(player.id);
+  run(`UPDATE players SET ${updates.join(', ')} WHERE id = ?`, params);
+  saveToDisk();
+
+  const updated = queryOne('SELECT * FROM players WHERE id = ?', [player.id]);
+  res.json({ player: updated });
+});
+
+// PUT /api/rounds/:id — edit round result (post-mortem correction)
+app.put('/api/rounds/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const round = queryOne('SELECT r.*, t.user_id FROM round_results r JOIN tournaments t ON r.tournament_id = t.id WHERE r.id = ?', [req.params.id]);
+  if (!round) {
+    return res.status(404).json({ error: 'Результат раунда не найден' });
+  }
+  if (round.user_id !== user.id) {
+    return res.status(403).json({ error: 'Доступ запрещён' });
+  }
+
+  const { points_earned, map_name, map_condition, deaths, loot_allowed, crafted_keys_used, penalty_seconds_applied } = req.body || {};
+  const updates = [];
+  const params = [];
+
+  if (points_earned !== undefined) { updates.push('points_earned = ?'); params.push(points_earned); }
+  if (map_name !== undefined) { updates.push('map_name = ?'); params.push(map_name); }
+  if (map_condition !== undefined) { updates.push('map_condition = ?'); params.push(map_condition); }
+  if (deaths !== undefined) { updates.push('deaths = ?'); params.push(deaths); }
+  if (loot_allowed !== undefined) { updates.push('loot_allowed = ?'); params.push(loot_allowed ? 1 : 0); }
+  if (crafted_keys_used !== undefined) { updates.push('crafted_keys_used = ?'); params.push(crafted_keys_used); }
+  if (penalty_seconds_applied !== undefined) { updates.push('penalty_seconds_applied = ?'); params.push(penalty_seconds_applied); }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'Нет полей для обновления' });
+  }
+
+  params.push(round.id);
+  run(`UPDATE round_results SET ${updates.join(', ')} WHERE id = ?`, params);
+  saveToDisk();
+
+  const updated = queryOne('SELECT * FROM round_results WHERE id = ?', [round.id]);
+  res.json({ round: updated });
+});
+
+// PUT /api/tournament-participants/:id — update participant fields (embark_id, amplifier, etc.)
+app.put('/api/tournament-participants/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const p = queryOne(
+    'SELECT tp.*, t.user_id FROM tournament_participants tp JOIN tournaments t ON tp.tournament_id = t.id WHERE tp.id = ?',
+    [req.params.id]
+  );
+  if (!p) {
+    return res.status(404).json({ error: 'Участник не найден' });
+  }
+  if (p.user_id !== user.id) {
+    return res.status(403).json({ error: 'Доступ запрещён' });
+  }
+
+  const { name, embark_id, hours_played, lobby_type, player_type, amplifier, shield, discord_role } = req.body || {};
+  const updates = [];
+  const params = [];
+
+  if (name !== undefined) { updates.push('name = ?'); params.push(name.trim()); }
+  if (embark_id !== undefined) { updates.push('embark_id = ?'); params.push(embark_id || null); }
+  if (hours_played !== undefined) { updates.push('hours_played = ?'); params.push(hours_played); }
+  if (lobby_type !== undefined) { updates.push('lobby_type = ?'); params.push(lobby_type); }
+  if (player_type !== undefined) { updates.push('player_type = ?'); params.push(player_type); }
+  if (amplifier !== undefined) { updates.push('amplifier = ?'); params.push(amplifier); }
+  if (shield !== undefined) { updates.push('shield = ?'); params.push(shield); }
+  if (discord_role !== undefined) { updates.push('discord_role = ?'); params.push(discord_role); }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'Нет полей для обновления' });
+  }
+
+  params.push(p.id);
+  run(`UPDATE tournament_participants SET ${updates.join(', ')} WHERE id = ?`, params);
+  saveToDisk();
+
+  const updated = queryOne('SELECT * FROM tournament_participants WHERE id = ?', [p.id]);
+  res.json({ participant: updated });
+});
 
 // ── Serve static files from dist/ ────────────────────────────
 
