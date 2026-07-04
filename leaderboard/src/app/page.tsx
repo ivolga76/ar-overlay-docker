@@ -9,8 +9,7 @@ import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { AnimatedCounter } from '@/components/AnimatedCounter';
 import { getTournaments, getSeasons } from '@/lib/api';
 
-export const dynamic = 'force-static';
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export default async function HomePage() {
   const [tournaments, seasons] = await Promise.all([

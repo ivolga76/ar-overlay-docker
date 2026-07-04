@@ -3,10 +3,9 @@
 /**
  * Compute MMR from total points, wins, and losses.
  * Base MMR = 1000 (matches the Google Sheets convention).
- * Formula: base + points * 5 + wins * 10 - losses * 8
+ * Formula: base + points × 3 + wins × 15 − losses × 5
  *
- * This approximates the scoring seen in the reference spreadsheet
- * where top players have ~1017 MMR with 2 wins / 1 loss.
+ * Kept in sync with production-server.js computeSeasonRatings().
  */
 export function computeMmr(
   totalPoints: number,
@@ -14,9 +13,9 @@ export function computeMmr(
   losses: number
 ): number {
   const BASE_MMR = 1000;
-  const POINTS_WEIGHT = 5;
-  const WIN_BONUS = 10;
-  const LOSS_PENALTY = 8;
+  const POINTS_WEIGHT = 3;
+  const WIN_BONUS = 15;
+  const LOSS_PENALTY = 5;
 
   return BASE_MMR + totalPoints * POINTS_WEIGHT + wins * WIN_BONUS - losses * LOSS_PENALTY;
 }
@@ -69,5 +68,5 @@ export function avatarPlaceholder(name: string): string {
     <text x="32" y="42" text-anchor="middle" fill="${color}" font-family="Urbanist, sans-serif" font-weight="800" font-size="28">${initial}</text>
   </svg>`;
 
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
 }

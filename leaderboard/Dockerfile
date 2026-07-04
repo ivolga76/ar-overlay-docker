@@ -24,10 +24,7 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 
-# Install only production deps for standalone
-COPY --from=build /app/package.json ./
-COPY --from=build /app/pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+# Standalone output already bundles all dependencies — no extra install needed
 
 ENV NODE_ENV=production
 ENV PORT=3002

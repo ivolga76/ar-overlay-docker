@@ -8,6 +8,7 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypt
 import { WebSocketServer } from 'ws';
 import { initDatabase, getDb, query, queryOne, run, closeDatabase, saveToDisk } from './db/connection.js';
 import { migrate } from './db/migrate.js';
+import { DEFAULT_STATE, GAME_FIELDS } from './shared/state-fields.js';
 
 const PORT = 3001;
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -34,9 +35,23 @@ function findUserByEmail(email) {
   return rows[0] || null;
 }
 
+const SESSION_TTL_DAYS = 30;
+
 function findSession(token) {
-  const rows = query('SELECT * FROM sessions WHERE token = ?', [token]);
+  const rows = query(
+    `SELECT * FROM sessions WHERE token = ? AND expires_at > datetime('now')`,
+    [token]
+  );
   return rows[0] || null;
+}
+
+/** Clean up expired sessions — call periodically */
+function cleanupExpiredSessions() {
+  const result = run("DELETE FROM sessions WHERE expires_at <= datetime('now')");
+  if (result.changes > 0) {
+    saveToDisk();
+    console.log(`[auth] cleaned up ${result.changes} expired session(s)`);
+  }
 }
 
 function authenticate(req) {
@@ -53,58 +68,9 @@ function findUserById(id) {
   return rows[0] || null;
 }
 
-// ── Per-user tournament state ────────────────────────────────
+// ── Per-user tournament state (imported from shared module) ──
 
-const DEFAULT_STATE = {
-  version: 0,
-  tasks: [],
-  rouletteItems: [],
-  players: [
-    { id: 'p-1', name: 'Alex', totalPoints: 0 },
-    { id: 'p-2', name: 'Sam', totalPoints: 0 },
-  ],
-  teams: [
-    {
-      id: 't-1',
-      name: 'North Gate',
-      players: [
-        { id: 'p-1', name: 'Alex', totalPoints: 0 },
-        { id: 'p-2', name: 'Sam', totalPoints: 0 },
-      ],
-      totalPoints: 0,
-    },
-  ],
-  rounds: [],
-  extensions: { bonusTasks: [], complications: [] },
-  overlayLayout: [
-    { id: 'tasks', type: 'tasks', x: 1300, y: 7, scale: 1.0, visible: true },
-    { id: 'tournament-name', type: 'tournament-name', x: 10, y: 2, scale: 1.0, visible: true },
-    { id: 'round', type: 'round', x: 11, y: 36, scale: 1.0, visible: true },
-    { id: 'score', type: 'score', x: 474, y: 953, scale: 1.2, visible: true },
-    { id: 'timer', type: 'timer', x: 856, y: 886, scale: 1.0, visible: true },
-    { id: 'previous-player', type: 'previous-player', x: 1584, y: 930, scale: 1.25, visible: true },
-    { id: 'standings', type: 'standings', x: 1480, y: 100, scale: 1.2, visible: false },
-    { id: 'complications', type: 'complications', x: 1300, y: 244, scale: 1.0, visible: true },
-  ],
-  mode: '1x1',
-  currentRound: 1,
-  totalRounds: 3,
-  tournamentName: 'Битва за Респект',
-  soundEnabled: true,
-  currentPoints: 0,
-  currentParticipantId: 'p-1',
-  previousPlayerOrTeamId: 'p-2',
-  showStandings: false,
-  timer: { remainingMs: 0, totalMs: 0, running: false, paused: false },
-  auditLog: [],
-};
-
-const gameFields = [
-  'mode', 'currentRound', 'currentPoints', 'currentParticipantId',
-  'tasks', 'players', 'teams', 'showStandings', 'extensions', 'rounds',
-  'previousPlayerOrTeamId', 'overlayLayout', 'totalRounds', 'tournamentName', 'soundEnabled',
-  'rouletteItems', 'rouletteVariant', 'rouletteSpinDuration',
-];
+const gameFields = GAME_FIELDS;
 
 const userStates = new Map();
 const userLastAccess = new Map(); // userId → timestamp for TTL cleanup
@@ -355,7 +321,10 @@ app.post('/api/register', rateLimit, async (req, res) => {
   );
 
   const token = randomUUID();
-  run('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)', [token, userId, now]);
+  run(
+    `INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, datetime('now', '+${SESSION_TTL_DAYS} days'))`,
+    [token, userId, now]
+  );
   saveToDisk();
 
   console.log(`[auth] registered user: ${cleanEmail}`);
@@ -380,8 +349,10 @@ app.post('/api/login', rateLimit, async (req, res) => {
   }
 
   const token = randomUUID();
-  run('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)',
-    [token, user.id, new Date().toISOString()]);
+  run(
+    `INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, datetime('now', '+${SESSION_TTL_DAYS} days'))`,
+    [token, user.id, new Date().toISOString()]
+  );
   saveToDisk();
 
   console.log(`[auth] login: ${cleanEmail}`);
@@ -1901,22 +1872,35 @@ app.get('/api/seasons/:id/matches', (req, res) => {
 
   const matches = query(sql, params);
 
-  // Enrich with winner info
-  for (const m of matches) {
-    const winner = queryOne(
-      `SELECT tp.name, ts.total_points
+  if (matches.length > 0) {
+    // Batch: winners + participant counts in 2 queries instead of 2N
+    const matchIds = matches.map(m => m.id);
+    const placeholders = matchIds.map(() => '?').join(',');
+
+    // All winners at once
+    const winners = query(
+      `SELECT ts.tournament_id, tp.name, ts.total_points
        FROM tournament_standings ts
        JOIN tournament_participants tp ON ts.participant_id = tp.id
-       WHERE ts.tournament_id = ? AND ts.rank = 1`,
-      [m.id]
+       WHERE ts.tournament_id IN (${placeholders}) AND ts.rank = 1`,
+      matchIds
     );
-    m.winner = winner || null;
+    const winnerMap = new Map(winners.map(w => [w.tournament_id, w]));
 
-    const participantCount = queryOne(
-      'SELECT COUNT(*) as count FROM tournament_participants WHERE tournament_id = ?',
-      [m.id]
+    // All participant counts at once
+    const counts = query(
+      `SELECT tournament_id, COUNT(*) as count
+       FROM tournament_participants
+       WHERE tournament_id IN (${placeholders})
+       GROUP BY tournament_id`,
+      matchIds
     );
-    m.participants_count = participantCount?.count || 0;
+    const countMap = new Map(counts.map(c => [c.tournament_id, c.count]));
+
+    for (const m of matches) {
+      m.winner = winnerMap.get(m.id) || null;
+      m.participants_count = countMap.get(m.id) || 0;
+    }
   }
 
   res.json({ matches });
@@ -1933,20 +1917,43 @@ app.get('/api/seasons/:id/teams', (req, res) => {
     [req.params.id]
   );
 
-  // Enrich with members
-  for (const team of teams) {
-    team.members = query(
-      'SELECT player_name as name FROM participant_members WHERE participant_id = ? ORDER BY sort_order',
-      [team.id]
+  // Batch enrich: members + standings in 2 queries instead of 2N
+  if (teams.length > 0) {
+    const teamIds = teams.map(t => t.id);
+    const placeholders = teamIds.map(() => '?').join(',');
+
+    // All members at once
+    const allMembers = query(
+      `SELECT participant_id, player_name as name
+       FROM participant_members
+       WHERE participant_id IN (${placeholders})
+       ORDER BY participant_id, sort_order`,
+      teamIds
     );
-    // Get their standings
-    const standing = queryOne(
-      `SELECT total_points, rank FROM tournament_standings 
-       WHERE tournament_id = ? AND participant_id = ?`,
-      [team.tournament_id, team.id]
+    const membersMap = new Map();
+    for (const m of allMembers) {
+      if (!membersMap.has(m.participant_id)) membersMap.set(m.participant_id, []);
+      membersMap.get(m.participant_id).push({ name: m.name });
+    }
+
+    // All standings at once
+    const allStandings = query(
+      `SELECT tournament_id, participant_id, total_points, rank
+       FROM tournament_standings
+       WHERE participant_id IN (${placeholders})`,
+      teamIds
     );
-    team.total_points = standing?.total_points || 0;
-    team.rank = standing?.rank || null;
+    const standingsMap = new Map();
+    for (const s of allStandings) {
+      standingsMap.set(s.participant_id, s);
+    }
+
+    for (const team of teams) {
+      team.members = membersMap.get(team.id) || [];
+      const s = standingsMap.get(team.id);
+      team.total_points = s?.total_points || 0;
+      team.rank = s?.rank || null;
+    }
   }
 
   res.json({ teams });
@@ -2284,6 +2291,10 @@ async function start() {
     console.error('[startup] database initialization failed:', err.message);
     process.exit(1);
   }
+
+  // Clean up expired sessions on startup + every 6 hours
+  cleanupExpiredSessions();
+  setInterval(cleanupExpiredSessions, 6 * 60 * 60 * 1000).unref();
 
   httpServer.listen(PORT, () => {
     console.log(`[production-server] listening on http://0.0.0.0:${PORT}`);

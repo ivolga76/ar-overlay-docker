@@ -32,11 +32,12 @@ export async function initDatabase() {
     console.log(`[db] loaded existing database (${(buffer.length / 1024).toFixed(0)} KB)`);
   } else {
     db = new SQL.Database();
-    // Enable WAL mode for better concurrent read performance
-    db.run('PRAGMA journal_mode=WAL');
-    db.run('PRAGMA foreign_keys=ON');
     console.log('[db] created new in-memory database');
   }
+
+  // Enable WAL mode + foreign keys on every startup (not just new DBs)
+  db.run('PRAGMA journal_mode=WAL');
+  db.run('PRAGMA foreign_keys=ON');
 
   return db;
 }
