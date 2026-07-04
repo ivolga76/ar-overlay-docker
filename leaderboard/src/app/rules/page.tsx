@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: 'Правила турниров Arc Raiders «Битва за Респект». Формат, контракты, протоколы, усложнения, награды.',
 };
 
-export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
 async function getRulesText(): Promise<string> {
   try {
