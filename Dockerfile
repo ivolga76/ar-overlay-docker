@@ -27,6 +27,7 @@ COPY --from=build /app/package.json ./
 COPY --from=build /app/pnpm-lock.yaml ./
 COPY --from=build /app/production-server.js ./
 COPY --from=build /app/db ./db
+COPY --from=build /app/shared ./shared
 
 # Install only production dependencies
 RUN pnpm install --prod --frozen-lockfile
