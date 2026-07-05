@@ -121,14 +121,14 @@ export default function Admin() {
       }, token);
 
       // Auto-start the tournament
-      await startTournament(created.tournament.id, token);
+      await startTournament(created.id, token);
 
       setShowCreateModal(false);
       setNewTournamentName('');
       setNewTournamentMode('1x1');
       setNewTournamentType('pve');
       setNewTournamentRounds(1);
-      setActiveTournament(created.tournament);
+      setActiveTournament(created);
       setActiveTab('overlay');
     } catch (err) {
       setCreateError(err.message);
