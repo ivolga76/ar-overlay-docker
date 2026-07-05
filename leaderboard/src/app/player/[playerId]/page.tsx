@@ -6,9 +6,10 @@ import { PageHeader } from '@/components/PageHeader';
 import { DarkPanel } from '@/components/DarkPanel';
 import { getPlayerStats } from '@/lib/api';
 import { formatMmr, formatDate } from '@/lib/utils';
+import type { MMRHistoryEntry } from '@/lib/types';
 
-export const dynamic = 'force-static';
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function generateMetadata({
   params,
@@ -35,6 +36,9 @@ export default async function PlayerPage({
   const peakMmr = stats.peakMmr ?? 1000;
   const totalWins = stats.totalWins ?? 0;
   const totalLosses = stats.totalLosses ?? 0;
+  const createdAt = stats.createdAt ?? null;
+  const playerType = stats.playerType ?? null;
+  const mmrHistory = stats.mmrHistory ?? [];
 
   const mmr = formatMmr(currentMmr);
   const peak = formatMmr(peakMmr);
@@ -42,6 +46,19 @@ export default async function PlayerPage({
     totalWins + totalLosses > 0
       ? Math.round((totalWins / (totalWins + totalLosses)) * 100)
       : 0;
+
+  // Best rank from history
+  const bestRank =
+    stats.history && stats.history.length > 0
+      ? Math.min(...stats.history.map((h) => h.rank))
+      : null;
+
+  // Player type label
+  const typeLabel =
+    playerType === 'pvp' ? 'PvP' :
+    playerType === 'pve' ? 'PvE' :
+    playerType === 'pvpve' ? 'PvPvE' :
+    null;
 
   return (
     <main className="flex-1">
@@ -51,6 +68,25 @@ export default async function PlayerPage({
         backHref="/standings"
         backLabel="К рейтингу"
       />
+
+      {/* ════════════ Meta Row: Registration + Type ════════════ */}
+      <section className="max-w-4xl mx-auto px-4 pb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          {createdAt && (
+            <span className="text-xs text-text-muted tracking-wider uppercase">
+              Игрок с{' '}
+              <time dateTime={createdAt} className="text-text-primary font-heading font-bold">
+                {formatDate(createdAt)}
+              </time>
+            </span>
+          )}
+          {typeLabel && (
+            <span className="text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[rgba(255,184,0,0.12)] text-accent-gold font-heading font-bold">
+              {typeLabel}
+            </span>
+          )}
+        </div>
+      </section>
 
       {/* ════════════ Summary Cards ════════════ */}
       <section className="max-w-4xl mx-auto px-4 pb-10">
@@ -65,11 +101,25 @@ export default async function PlayerPage({
           <StatCard label="Всего турниров" value={String(stats.totalTournaments ?? 0)} colorClass="text-text-primary" />
           <StatCard
             label="Лучший результат"
-            value={stats.history && stats.history.length > 0 ? `#${Math.min(...stats.history.map((h) => h.rank))}` : '—'}
+            value={bestRank ? `#${bestRank}` : '—'}
             colorClass="text-accent-gold"
           />
         </div>
       </section>
+
+      {/* ════════════ MMR Chart ════════════ */}
+      {mmrHistory.length >= 2 && (
+        <section className="max-w-4xl mx-auto px-4 pb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <hr className="neon-divider flex-1" />
+            <h2 className="heading-section flex-shrink-0">Динамика MMR</h2>
+            <hr className="neon-divider flex-1" />
+          </div>
+          <DarkPanel className="p-5">
+            <MmrSparkline history={mmrHistory} />
+          </DarkPanel>
+        </section>
+      )}
 
       {/* ════════════ Tournament History ════════════ */}
       <section className="max-w-4xl mx-auto px-4 pb-20">
@@ -167,4 +217,157 @@ function StatCard({
       <p className="text-[10px] uppercase tracking-wider text-text-muted mt-2">{label}</p>
     </DarkPanel>
   );
+}
+
+/** SVG sparkline chart for MMR progression */
+function MmrSparkline({ history }: { history: MMRHistoryEntry[] }) {
+  if (history.length < 2) return null;
+
+  const width = 700;
+  const height = 160;
+  const padding = { top: 20, right: 16, bottom: 28, left: 10 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+
+  const values = history.map((h) => h.mmr);
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const range = maxVal - minVal || 1; // avoid division by zero
+
+  // Y scale: min at bottom, max at top, with 5% padding
+  const yPad = range * 0.08;
+  const yMin = minVal - yPad;
+  const yMax = maxVal + yPad;
+  const yRange = yMax - yMin || 1;
+  const scaleY = (v: number) =>
+    padding.top + chartH - ((v - yMin) / yRange) * chartH;
+
+  // X scale
+  const scaleX = (i: number) =>
+    padding.left + (i / (history.length - 1)) * chartW;
+
+  // Build path
+  const points = history.map((h, i) => `${scaleX(i)},${scaleY(h.mmr)}`);
+  const linePath = points.join(' L ');
+
+  // Area fill under the line
+  const areaPath = `M ${scaleX(0)},${padding.top + chartH} L ${linePath} L ${scaleX(history.length - 1)},${padding.top + chartH} Z`;
+
+  // Y-axis labels (min, mid, max)
+  const yTicks = [yMax, (yMax + yMin) / 2, yMin].map((v) => Math.round(v));
+
+  // X-axis labels: first, middle, last date
+  const dateTicks = [
+    { i: 0, label: formatShortDate(history[0].date) },
+    {
+      i: Math.floor((history.length - 1) / 2),
+      label: formatShortDate(history[Math.floor((history.length - 1) / 2)].date),
+    },
+    { i: history.length - 1, label: formatShortDate(history[history.length - 1].date) },
+  ];
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="w-full h-auto"
+      style={{ maxHeight: '180px' }}
+      role="img"
+      aria-label="График изменения MMR"
+    >
+      {/* Grid lines */}
+      {yTicks.map((v, i) => (
+        <g key={`grid-${i}`}>
+          <line
+            x1={padding.left}
+            y1={scaleY(v)}
+            x2={width - padding.right}
+            y2={scaleY(v)}
+            stroke="rgba(234,224,205,0.06)"
+            strokeWidth="1"
+          />
+          <text
+            x={width - padding.right + 2}
+            y={scaleY(v) + 3}
+            fill="rgba(234,224,205,0.4)"
+            fontSize="9"
+            fontFamily="monospace"
+            textAnchor="start"
+          >
+            {v}
+          </text>
+        </g>
+      ))}
+
+      {/* Area fill */}
+      <path
+        d={areaPath}
+        fill="url(#mmrGradient)"
+        opacity="0.3"
+      />
+
+      {/* Line */}
+      <path
+        d={`M ${linePath}`}
+        fill="none"
+        stroke="url(#mmrLineGradient)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Data points */}
+      {history.map((h, i) => (
+        <circle
+          key={i}
+          cx={scaleX(i)}
+          cy={scaleY(h.mmr)}
+          r="3"
+          fill="#00ffff"
+          stroke="#0a0a0f"
+          strokeWidth="1.5"
+        >
+          <title>
+            {h.tournamentName}: {h.mmr} MMR ({formatShortDate(h.date)})
+          </title>
+        </circle>
+      ))}
+
+      {/* X-axis date labels */}
+      {dateTicks.map((dt) => (
+        <text
+          key={dt.i}
+          x={scaleX(dt.i)}
+          y={height - 4}
+          fill="rgba(234,224,205,0.35)"
+          fontSize="9"
+          fontFamily="monospace"
+          textAnchor={dt.i === 0 ? 'start' : dt.i === history.length - 1 ? 'end' : 'middle'}
+        >
+          {dt.label}
+        </text>
+      ))}
+
+      {/* Gradients */}
+      <defs>
+        <linearGradient id="mmrGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#00ffff" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#00ffff" stopOpacity="0.02" />
+        </linearGradient>
+        <linearGradient id="mmrLineGradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#00ffff" />
+          <stop offset="100%" stopColor="#ff00ff" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+/** Short date format: DD.MM */
+function formatShortDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+  } catch {
+    return dateStr;
+  }
 }

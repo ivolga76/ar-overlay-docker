@@ -1527,25 +1527,69 @@ app.get('/api/players/:playerId', (req, res) => {
     [nickname]
   );
 
-  // Get player's current MMR from players table (via player_id link)
-  let currentMmr = 1000;
+  // Get player record from players table (via player_id link)
+  let playerRecord = null;
   if (participant.player_id) {
-    const pl = queryOne('SELECT current_mmr FROM players WHERE id = ?', [participant.player_id]);
-    currentMmr = pl?.current_mmr ?? 1000;
+    playerRecord = queryOne('SELECT * FROM players WHERE id = ?', [participant.player_id]);
   }
 
-  // Compute peak MMR from tournament history
+  // Current MMR from players table
+  let currentMmr = playerRecord?.current_mmr ?? 1000;
+
+  // Registration date: from players.created_at, or earliest tournament date as fallback
+  let createdAt = playerRecord?.created_at ?? null;
+  if (!createdAt && history.length > 0) {
+    // Earliest tournament completion date
+    const earliest = history.reduce((a, b) =>
+      (a.completedAt && (!b.completedAt || a.completedAt < b.completedAt)) ? a : b
+    );
+    createdAt = earliest.completedAt ?? null;
+  }
+
+  // Player type: most common player_type across tournaments, or from current participant
+  const typeCounts = {};
+  for (const h of history) {
+    const tp = queryOne(
+      'SELECT player_type FROM tournament_participants WHERE name = ? AND tournament_id = ?',
+      [nickname, h.tournamentId]
+    );
+    if (tp?.player_type) {
+      typeCounts[tp.player_type] = (typeCounts[tp.player_type] || 0) + 1;
+    }
+  }
+  // Also check current participant's type
+  if (participant.player_type) {
+    typeCounts[participant.player_type] = (typeCounts[participant.player_type] || 0) + 1;
+  }
+  let playerType = null;
+  let maxCount = 0;
+  for (const [t, c] of Object.entries(typeCounts)) {
+    if (c > maxCount) { maxCount = c; playerType = t; }
+  }
+
+  // Compute peak MMR and build mmrHistory (for chart)
   let peakMmr = currentMmr;
   const totalWins = history.filter(h => h.isWinner === 1).length;
   const totalLosses = history.filter(h => h.isWinner === 0).length;
   const totalTournaments = history.length;
 
+  const mmrHistory = [];
   for (const h of history) {
     const hMmr = h.mmrAfter ?? 1000;
     if (hMmr > peakMmr) peakMmr = hMmr;
     // Map fields for frontend
     h.mmr = hMmr;
+    // Build chart data (only entries with valid MMR and date)
+    if (h.mmrAfter != null && h.completedAt) {
+      mmrHistory.push({
+        tournamentName: h.tournamentName,
+        date: h.completedAt,
+        mmr: hMmr,
+      });
+    }
   }
+  // Reverse to chronological order for chart (oldest first)
+  mmrHistory.reverse();
 
   res.json({
     playerId: participant.id,
@@ -1555,6 +1599,9 @@ app.get('/api/players/:playerId', (req, res) => {
     totalLosses,
     peakMmr,
     currentMmr,
+    createdAt,
+    playerType,
+    mmrHistory,
     history,
   });
 });

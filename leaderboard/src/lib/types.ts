@@ -235,6 +235,9 @@ export interface PlayerStats {
   totalLosses?: number;
   peakMmr?: number;
   currentMmr?: number;
+  createdAt?: string | null;
+  playerType?: string | null;
+  mmrHistory?: MMRHistoryEntry[];
   history?: PlayerTournamentEntry[];
 }
 
@@ -248,6 +251,13 @@ export interface PlayerTournamentEntry {
   wins?: number;
   losses?: number;
   completedAt?: string | null;
+}
+
+/** MMR history point for sparkline chart */
+export interface MMRHistoryEntry {
+  tournamentName: string;
+  date: string;
+  mmr: number;
 }
 
 /** API error */
