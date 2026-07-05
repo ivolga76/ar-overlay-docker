@@ -589,9 +589,6 @@ export default function AdminOverlayTab({
             <p className="eyebrow">Итоги</p>
             <h2>Таблица</h2>
           </div>
-          <button type="button" onClick={() => { if (window.confirm('Сбросить весь турнир? Данные будут потеряны.')) resetTournament(); }}>
-            Новый турнир
-          </button>
         </div>
         <div className="button-pair" style={{ marginTop: 10 }}>
           <button type="button" onClick={handleExport}>

@@ -10,6 +10,7 @@ import ContractsTab from './ContractsTab.jsx';
 import ProtocolsTab from './ProtocolsTab.jsx';
 import LegendaryTab from './LegendaryTab.jsx';
 import { playParticipantSwitch, playRoundChange } from '../utils/sounds.js';
+import { createTournament, getSeasons } from '../utils/apiClient.js';
 
 export default function Admin() {
   const {
@@ -44,6 +45,55 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('overlay');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { logout, user, token } = useAuth();
+
+  // ── New tournament modal state ────────────────────────────
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newTournamentMode, setNewTournamentMode] = useState('1x1');
+  const [newTournamentType, setNewTournamentType] = useState('pve');
+  const [newTournamentRounds, setNewTournamentRounds] = useState(1);
+  const [newTournamentSeasonId, setNewTournamentSeasonId] = useState('');
+  const [newTournamentName, setNewTournamentName] = useState('');
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState(null);
+  const [seasons, setSeasons] = useState([]);
+
+  // Load seasons for the modal
+  useEffect(() => {
+    if (!token) return;
+    getSeasons(token).then((list) => {
+      setSeasons(list);
+      // Default to the active season (season-2 is expected)
+      const active = list.filter((s) => s.status === 'active');
+      if (active.length > 0 && !newTournamentSeasonId) {
+        setNewTournamentSeasonId(active[active.length - 1].id);
+      }
+    }).catch(() => {});
+  }, [token]);
+
+  const handleCreateTournament = async (e) => {
+    e.preventDefault();
+    const name = newTournamentName.trim() || `Турнир ${new Date().toLocaleDateString('ru-RU')}`;
+    setCreateSubmitting(true);
+    setCreateError(null);
+    try {
+      await createTournament({
+        name,
+        mode: newTournamentMode,
+        totalRounds: newTournamentRounds,
+        season_id: newTournamentSeasonId || undefined,
+      }, token);
+      setShowCreateModal(false);
+      setNewTournamentName('');
+      setNewTournamentMode('1x1');
+      setNewTournamentType('pve');
+      setNewTournamentRounds(1);
+      setActiveTab('tournaments');
+    } catch (err) {
+      setCreateError(err.message);
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
 
   // Keyboard: Arrow keys switch participants, +/- adjust points
   useEffect(() => {
@@ -149,6 +199,14 @@ export default function Admin() {
           <h1>Битва за Респект</h1>
         </div>
         <nav>
+          <button
+            type="button"
+            className="overlay-link-btn"
+            onClick={() => setShowCreateModal(true)}
+            title="Создать новый турнир"
+          >
+            Новый турнир
+          </button>
           <a href={`/overlay/${user.id}`} target="_blank" rel="noreferrer">
             Открыть overlay
           </a>
@@ -339,6 +397,108 @@ export default function Admin() {
           )}
         </section>
       </div>
+
+      {/* ── New Tournament Modal ──────────────────────────── */}
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <form
+            className="modal-content tech-panel"
+            style={{ maxWidth: 420, padding: 24 }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleCreateTournament}
+          >
+            <h2 style={{ fontFamily: 'var(--display-font)', margin: '0 0 16px' }}>Новый турнир</h2>
+
+            {createError && (
+              <div style={{ padding: '8px 12px', marginBottom: 12, border: '1px solid var(--danger)', borderRadius: 4, color: 'var(--danger)', fontSize: 13 }}>
+                {createError}
+              </div>
+            )}
+
+            <label style={{ display: 'block', marginBottom: 12 }}>
+              <span className="eyebrow">Название</span>
+              <input
+                type="text"
+                value={newTournamentName}
+                onChange={(e) => setNewTournamentName(e.target.value)}
+                placeholder="Битва за Респект"
+                style={{ width: '100%' }}
+                autoFocus
+              />
+            </label>
+
+            <label style={{ display: 'block', marginBottom: 12 }}>
+              <span className="eyebrow">Режим</span>
+              <select
+                value={newTournamentMode}
+                onChange={(e) => setNewTournamentMode(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                <option value="1x1">1×1</option>
+                <option value="2x2">2×2</option>
+              </select>
+            </label>
+
+            <label style={{ display: 'block', marginBottom: 12 }}>
+              <span className="eyebrow">Тип</span>
+              <select
+                value={newTournamentType}
+                onChange={(e) => setNewTournamentType(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                <option value="pve">PvE</option>
+                <option value="pvp">PvP</option>
+                <option value="pvpve">PvPvE</option>
+              </select>
+            </label>
+
+            <label style={{ display: 'block', marginBottom: 12 }}>
+              <span className="eyebrow">Количество раундов</span>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={newTournamentRounds}
+                onChange={(e) => setNewTournamentRounds(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </label>
+
+            <label style={{ display: 'block', marginBottom: 16 }}>
+              <span className="eyebrow">Сезон</span>
+              <select
+                value={newTournamentSeasonId}
+                onChange={(e) => setNewTournamentSeasonId(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                {seasons.length === 0 && <option value="">Загрузка…</option>}
+                {seasons.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="roulette-btn"
+                onClick={() => setShowCreateModal(false)}
+                style={{ padding: '8px 16px' }}
+              >
+                Отмена
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={createSubmitting}
+                style={{ padding: '8px 20px' }}
+              >
+                {createSubmitting ? 'Создание…' : 'Создать'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </main>
   );
 }
