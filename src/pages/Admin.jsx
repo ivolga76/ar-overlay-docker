@@ -10,7 +10,7 @@ import ContractsTab from './ContractsTab.jsx';
 import ProtocolsTab from './ProtocolsTab.jsx';
 import LegendaryTab from './LegendaryTab.jsx';
 import { playParticipantSwitch, playRoundChange } from '../utils/sounds.js';
-import { createTournament, getSeasons } from '../utils/apiClient.js';
+import { createTournament, getSeasons, getTournaments, startTournament, completeTournament } from '../utils/apiClient.js';
 
 export default function Admin() {
   const {
@@ -56,6 +56,8 @@ export default function Admin() {
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState(null);
   const [seasons, setSeasons] = useState([]);
+  const [activeTournament, setActiveTournament] = useState(null);
+  const [completingActive, setCompletingActive] = useState(false);
 
   // Load seasons for the modal
   useEffect(() => {
@@ -70,28 +72,83 @@ export default function Admin() {
     }).catch(() => {});
   }, [token]);
 
+  // Load tournaments to find the active one
+  const loadActiveTournament = useCallback(async () => {
+    if (!token) return;
+    try {
+      const list = await getTournaments(token);
+      // Find the first non-completed tournament (draft or active)
+      const active = list.find((t) => t.status === 'draft' || t.status === 'active');
+      setActiveTournament(active || null);
+      return list;
+    } catch {
+      return [];
+    }
+  }, [token]);
+
+  useEffect(() => {
+    loadActiveTournament();
+  }, [loadActiveTournament]);
+
+  // Listen for WebSocket updates to refresh active tournament
+  useEffect(() => {
+    function handleWsMessage(e) {
+      const msg = e.detail;
+      if (msg && (msg.type === 'tournaments' || msg.type === 'state_sync')) {
+        loadActiveTournament();
+      }
+    }
+    window.addEventListener('ws-message', handleWsMessage);
+    return () => window.removeEventListener('ws-message', handleWsMessage);
+  }, [loadActiveTournament]);
+
   const handleCreateTournament = async (e) => {
     e.preventDefault();
-    const name = newTournamentName.trim() || `Турнир ${new Date().toLocaleDateString('ru-RU')}`;
     setCreateSubmitting(true);
     setCreateError(null);
     try {
-      await createTournament({
+      // Auto-name: count existing tournaments + 1
+      const list = await getTournaments(token);
+      const nextNumber = (list?.length || 0) + 1;
+      const name = `#${nextNumber}`;
+
+      // Create tournament
+      const created = await createTournament({
         name,
         mode: newTournamentMode,
         totalRounds: newTournamentRounds,
         season_id: newTournamentSeasonId || undefined,
       }, token);
+
+      // Auto-start the tournament
+      await startTournament(created.tournament.id, token);
+
       setShowCreateModal(false);
       setNewTournamentName('');
       setNewTournamentMode('1x1');
       setNewTournamentType('pve');
       setNewTournamentRounds(1);
-      setActiveTab('tournaments');
+      setActiveTournament(created.tournament);
+      setActiveTab('overlay');
     } catch (err) {
       setCreateError(err.message);
     } finally {
       setCreateSubmitting(false);
+    }
+  };
+
+  const handleCompleteActiveTournament = async () => {
+    if (!activeTournament) return;
+    if (!window.confirm(`Завершить турнир «${activeTournament.name}»? Будут подсчитаны итоговые очки и обновлён рейтинг.`)) return;
+    setCompletingActive(true);
+    try {
+      await completeTournament(activeTournament.id, token);
+      setActiveTournament(null);
+      setActiveTab('tournaments');
+    } catch (err) {
+      alert(err.message || 'Ошибка завершения турнира');
+    } finally {
+      setCompletingActive(false);
     }
   };
 
@@ -199,14 +256,27 @@ export default function Admin() {
           <h1>Битва за Респект</h1>
         </div>
         <nav>
-          <button
-            type="button"
-            className="overlay-link-btn"
-            onClick={() => setShowCreateModal(true)}
-            title="Создать новый турнир"
-          >
-            Новый турнир
-          </button>
+          {activeTournament ? (
+            <button
+              type="button"
+              className="overlay-link-btn"
+              onClick={handleCompleteActiveTournament}
+              disabled={completingActive}
+              title="Завершить текущий турнир"
+              style={completingActive ? { opacity: 0.6 } : undefined}
+            >
+              {completingActive ? 'Завершение…' : 'Завершить турнир'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="overlay-link-btn"
+              onClick={() => setShowCreateModal(true)}
+              title="Создать новый турнир"
+            >
+              Новый турнир
+            </button>
+          )}
           <a href={`/overlay/${user.id}`} target="_blank" rel="noreferrer">
             Открыть overlay
           </a>
@@ -415,17 +485,9 @@ export default function Admin() {
               </div>
             )}
 
-            <label style={{ display: 'block', marginBottom: 12 }}>
-              <span className="eyebrow">Название</span>
-              <input
-                type="text"
-                value={newTournamentName}
-                onChange={(e) => setNewTournamentName(e.target.value)}
-                placeholder="Битва за Респект"
-                style={{ width: '100%' }}
-                autoFocus
-              />
-            </label>
+            <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+              Название будет присвоено автоматически
+            </p>
 
             <label style={{ display: 'block', marginBottom: 12 }}>
               <span className="eyebrow">Режим</span>
