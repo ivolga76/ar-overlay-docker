@@ -1366,42 +1366,59 @@ app.get('/api/leaderboard', (req, res) => {
   }
   params.push(limit);
 
+  // Aggregate wins/losses per player (across all tournaments)
+  const aggParams = [];
+  let aggFilters = '';
+  if (mode === '1x1' || mode === '2x2') {
+    aggFilters += ' AND t2.mode = ?';
+    aggParams.push(mode);
+  }
+  if (seasonId) {
+    aggFilters += ' AND t2.season_id = ?';
+    aggParams.push(seasonId);
+  }
+
   const rows = query(
-    `SELECT 
-       tp.id as participant_id,
-       tp.name as participant_name,
-       tp.type as participant_type,
-       t.id as tournament_id,
-       t.name as tournament_name,
-       t.mode as tournament_mode,
-       ts.total_points,
-       ts.rank as tournament_rank,
-       u.display_name as organizer_name,
-       COALESCE(wl.wins, 0) as wins,
-       COALESCE(wl.losses, 0) as losses,
-       COALESCE(ts.mmr_after, 1000) as mmr
-     FROM tournament_standings ts
-     JOIN tournament_participants tp ON ts.participant_id = tp.id
-     JOIN tournaments t ON ts.tournament_id = t.id
-     JOIN users u ON t.user_id = u.id
-     LEFT JOIN (
+    `SELECT * FROM (
        SELECT 
-         rr.tournament_id,
-         rr.participant_id,
-         SUM(CASE WHEN rr.points_earned = rm.max_points THEN 1 ELSE 0 END) as wins,
-         SUM(CASE WHEN rr.points_earned < rm.max_points THEN 1 ELSE 0 END) as losses
-       FROM round_results rr
-       JOIN (
-         SELECT tournament_id, round_number, MAX(points_earned) as max_points
-         FROM round_results
-         GROUP BY tournament_id, round_number
-       ) rm ON rr.tournament_id = rm.tournament_id AND rr.round_number = rm.round_number
-       GROUP BY rr.tournament_id, rr.participant_id
-     ) wl ON ts.tournament_id = wl.tournament_id AND ts.participant_id = wl.participant_id
-      WHERE t.status = 'completed' ${filters}
-     ORDER BY ts.mmr_after DESC
+         tp.id as participant_id,
+         tp.name as participant_name,
+         tp.type as participant_type,
+         t.id as tournament_id,
+         t.name as tournament_name,
+         t.mode as tournament_mode,
+         ts.total_points,
+         ts.rank as tournament_rank,
+         u.display_name as organizer_name,
+         COALESCE(agg.wins, 0) as wins,
+         COALESCE(agg.losses, 0) as losses,
+         COALESCE(ts.mmr_after, 1000) as mmr,
+         ROW_NUMBER() OVER (PARTITION BY tp.name ORDER BY t.completed_at DESC) as rn
+       FROM tournament_standings ts
+       JOIN tournament_participants tp ON ts.participant_id = tp.id
+       JOIN tournaments t ON ts.tournament_id = t.id
+       JOIN users u ON t.user_id = u.id
+       LEFT JOIN (
+         SELECT 
+           tp2.name,
+           SUM(CASE WHEN rr.points_earned = rm.max_points THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN rr.points_earned < rm.max_points THEN 1 ELSE 0 END) as losses
+         FROM tournament_participants tp2
+         JOIN round_results rr ON tp2.id = rr.participant_id
+         JOIN (
+           SELECT tournament_id, round_number, MAX(points_earned) as max_points
+           FROM round_results GROUP BY tournament_id, round_number
+         ) rm ON rr.tournament_id = rm.tournament_id AND rr.round_number = rm.round_number
+         JOIN tournaments t2 ON rr.tournament_id = t2.id
+         WHERE t2.status = 'completed' ${aggFilters}
+         GROUP BY tp2.name
+       ) agg ON tp.name = agg.name
+       WHERE t.status = 'completed' ${filters}
+     ) sub
+     WHERE rn = 1
+     ORDER BY mmr DESC
      LIMIT ?`,
-    params
+    [...aggParams, ...params]
   );
 
   res.json({ leaderboard: rows });
