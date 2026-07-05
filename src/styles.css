@@ -2666,3 +2666,46 @@ textarea:focus {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Autocomplete dropdown ───────────────────────────────── */
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 4px 0 0;
+  padding: 6px 0;
+  list-style: none;
+  background: rgba(14, 20, 27, 0.98);
+  border: 1px solid rgba(114, 217, 255, 0.25);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.autocomplete-dropdown li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+
+.autocomplete-dropdown li:hover,
+.autocomplete-dropdown li.highlighted {
+  background: rgba(0, 255, 255, 0.1);
+}
+
+.ac-name {
+  font-weight: 600;
+}
+
+.ac-meta {
+  font-size: 11px;
+  color: var(--muted);
+}

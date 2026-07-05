@@ -35,6 +35,11 @@ export async function getTournaments(token, seasonId) {
   return data.tournaments;
 }
 
+export async function searchPlayers(query, token) {
+  const data = await apiCall(`/api/players?search=${encodeURIComponent(query)}&limit=8`, { token });
+  return data.players || [];
+}
+
 export async function getTournament(id, token) {
   return await apiCall(`/api/tournaments/${id}`, { token });
 }
