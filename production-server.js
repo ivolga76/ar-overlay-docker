@@ -2513,7 +2513,13 @@ app.get('/api/players', (req, res) => {
 
   const { search, limit, offset } = req.query;
 
-  // Show all unique participant names, enriched with players-table metadata
+  // Show all unique participant names, enriched with players-table metadata.
+  // Build the search filter once and reuse in both the main query and the subquery.
+  const params = [];
+  const countParams = [];
+  const likePattern = search ? `%${search}%` : null;
+  const whereClause = search ? 'WHERE LOWER(name) LIKE LOWER(?)' : '';
+
   let sql = `
     SELECT
       p.id,
@@ -2522,20 +2528,16 @@ app.get('/api/players', (req, res) => {
       p.discord_name,
       p.created_at,
       COUNT(tp2.id) as tournament_count
-    FROM (SELECT DISTINCT name FROM tournament_participants) tp
+    FROM (SELECT DISTINCT name FROM tournament_participants ${whereClause}) tp
     LEFT JOIN players p ON p.display_name = tp.name
     LEFT JOIN tournament_participants tp2 ON tp2.name = tp.name
     GROUP BY tp.name
   `;
-  let countSql = 'SELECT COUNT(DISTINCT name) as count FROM tournament_participants';
-  const params = [];
-  const countParams = [];
+  let countSql = `SELECT COUNT(DISTINCT name) as count FROM tournament_participants ${whereClause}`;
 
   if (search) {
-    sql += ' HAVING LOWER(tp.name) LIKE LOWER(?)';
-    params.push(`%${search}%`);
-    countSql = 'SELECT COUNT(DISTINCT name) as count FROM tournament_participants WHERE LOWER(name) LIKE LOWER(?)';
-    countParams.push(`%${search}%`);
+    params.push(likePattern);
+    countParams.push(likePattern);
   }
 
   sql += ' ORDER BY tp.name ASC';
@@ -2547,6 +2549,58 @@ app.get('/api/players', (req, res) => {
   const total = queryOne(countSql, countParams);
 
   res.json({ players, total: total?.count || 0 });
+});
+
+// GET /api/teams — search teams by name, returns latest roster
+app.get('/api/teams', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const { search } = req.query;
+  let rows;
+  if (search) {
+    rows = query(
+      `SELECT tp.name, pm.player_name, pm.sort_order
+       FROM tournament_participants tp
+       JOIN participant_members pm ON pm.participant_id = tp.id
+       WHERE tp.type = 'team' AND LOWER(tp.name) LIKE LOWER(?)
+         AND tp.id = (
+           SELECT tp2.id FROM tournament_participants tp2
+           JOIN tournaments t ON t.id = tp2.tournament_id
+           WHERE tp2.name = tp.name AND tp2.type = 'team'
+           ORDER BY t.created_at DESC LIMIT 1
+         )
+       ORDER BY tp.name, pm.sort_order`,
+      [`%${search}%`]
+    );
+  } else {
+    rows = query(
+      `SELECT tp.name, pm.player_name, pm.sort_order
+       FROM tournament_participants tp
+       JOIN participant_members pm ON pm.participant_id = tp.id
+       WHERE tp.type = 'team'
+         AND tp.id = (
+           SELECT tp2.id FROM tournament_participants tp2
+           JOIN tournaments t ON t.id = tp2.tournament_id
+           WHERE tp2.name = tp.name AND tp2.type = 'team'
+           ORDER BY t.created_at DESC LIMIT 1
+         )
+       ORDER BY tp.name, pm.sort_order
+       LIMIT 20`
+    );
+  }
+
+  // Group rows by team name
+  const teamMap = new Map();
+  for (const row of rows) {
+    if (!teamMap.has(row.name)) {
+      teamMap.set(row.name, { name: row.name, players: [] });
+    }
+    teamMap.get(row.name).players.push(row.player_name);
+  }
+  const teams = Array.from(teamMap.values());
+
+  res.json({ teams });
 });
 
 // PUT /api/players/:id — upsert player fields (auto-creates if new)

@@ -2,20 +2,34 @@ import { useState, useRef, useEffect } from 'react';
 import { searchPlayers } from '../utils/apiClient.js';
 
 /**
- * Autocomplete input with dropdown suggestions from /api/players.
+ * Autocomplete input with dropdown suggestions.
  * Props:
- *   value       — current input value
- *   onChange    — (newValue: string) => void
- *   placeholder — input placeholder text
- *   token       — auth token for API calls
- *   style       — optional inline style for the container
+ *   value        — current input value
+ *   onChange     — (newValue: string) => void
+ *   onSelect     — (item: object) => void — called when user picks a suggestion (receives the full item)
+ *   placeholder  — input placeholder text
+ *   token        — auth token for API calls
+ *   style        — optional inline style for the container
+ *   searchFn     — (query: string) => Promise<Array> — custom search; defaults to searchPlayers
+ *   disabled     — disable the input
  */
-export default function AutocompleteInput({ value, onChange, placeholder, token, style }) {
+export default function AutocompleteInput({
+  value,
+  onChange,
+  onSelect,
+  placeholder,
+  token,
+  style,
+  searchFn,
+  disabled,
+}) {
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
+
+  const doSearch = searchFn || ((q) => searchPlayers(q, token));
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -41,7 +55,7 @@ export default function AutocompleteInput({ value, onChange, placeholder, token,
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const list = await searchPlayers(v.trim(), token);
+        const list = await doSearch(v.trim());
         setSuggestions(list);
         setShowDropdown(list.length > 0);
       } catch {
@@ -51,8 +65,10 @@ export default function AutocompleteInput({ value, onChange, placeholder, token,
     }, 200);
   }
 
-  function selectName(name) {
+  function selectItem(item) {
+    const name = item.display_name || item.name;
     onChange(name);
+    if (onSelect) onSelect(item);
     setSuggestions([]);
     setShowDropdown(false);
     setHighlightIdx(-1);
@@ -68,10 +84,14 @@ export default function AutocompleteInput({ value, onChange, placeholder, token,
       setHighlightIdx((prev) => Math.max(prev - 1, 0));
     } else if (e.key === 'Enter' && highlightIdx >= 0) {
       e.preventDefault();
-      selectName(suggestions[highlightIdx].display_name);
+      selectItem(suggestions[highlightIdx]);
     } else if (e.key === 'Escape') {
       setShowDropdown(false);
     }
+  }
+
+  function getDisplayName(item) {
+    return item.display_name || item.name || '';
   }
 
   return (
@@ -84,19 +104,23 @@ export default function AutocompleteInput({ value, onChange, placeholder, token,
         onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
         placeholder={placeholder}
         autoComplete="off"
+        disabled={disabled}
       />
       {showDropdown && suggestions.length > 0 && (
         <ul className="autocomplete-dropdown">
-          {suggestions.map((p, i) => (
+          {suggestions.map((item, i) => (
             <li
-              key={p.display_name}
+              key={getDisplayName(item)}
               className={i === highlightIdx ? 'highlighted' : ''}
-              onMouseDown={(e) => { e.preventDefault(); selectName(p.display_name); }}
+              onMouseDown={(e) => { e.preventDefault(); selectItem(item); }}
               onMouseEnter={() => setHighlightIdx(i)}
             >
-              <span className="ac-name">{p.display_name}</span>
-              {p.tournament_count > 0 && (
-                <span className="ac-meta">{p.tournament_count} турн.</span>
+              <span className="ac-name">{getDisplayName(item)}</span>
+              {item.tournament_count > 0 && (
+                <span className="ac-meta">{item.tournament_count} турн.</span>
+              )}
+              {item.players && item.players.length > 0 && (
+                <span className="ac-meta">{item.players.join(' / ')}</span>
               )}
             </li>
           ))}

@@ -40,6 +40,11 @@ export async function searchPlayers(query, token) {
   return data.players || [];
 }
 
+export async function searchTeams(query, token) {
+  const data = await apiCall(`/api/teams?search=${encodeURIComponent(query)}`, { token });
+  return data.teams || [];
+}
+
 export async function getTournament(id, token) {
   return await apiCall(`/api/tournaments/${id}`, { token });
 }

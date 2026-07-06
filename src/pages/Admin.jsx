@@ -11,7 +11,7 @@ import ContractsTab from './ContractsTab.jsx';
 import ProtocolsTab from './ProtocolsTab.jsx';
 import LegendaryTab from './LegendaryTab.jsx';
 import { playParticipantSwitch, playRoundChange } from '../utils/sounds.js';
-import { createTournament, getSeasons, getTournaments, startTournament, completeTournament } from '../utils/apiClient.js';
+import { createTournament, getSeasons, getTournaments, startTournament, completeTournament, searchTeams } from '../utils/apiClient.js';
 
 export default function Admin() {
   const {
@@ -63,6 +63,9 @@ export default function Admin() {
   const [t2Name, setT2Name] = useState('');
   const [t2Player1, setT2Player1] = useState('');
   const [t2Player2, setT2Player2] = useState('');
+  // Lock player fields when a known team is selected
+  const [t1Locked, setT1Locked] = useState(false);
+  const [t2Locked, setT2Locked] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState(null);
   const [seasons, setSeasons] = useState([]);
@@ -126,6 +129,8 @@ export default function Admin() {
     setT2Name('');
     setT2Player1('');
     setT2Player2('');
+    setT1Locked(false);
+    setT2Locked(false);
     setCreateError(null);
   }
 
@@ -588,13 +593,17 @@ export default function Admin() {
                   <legend style={{ fontFamily: 'var(--display-font)', fontSize: 14, color: 'var(--cyan)' }}>Команда 1</legend>
                   <label style={{ display: 'block', marginBottom: 8 }}>
                     <span className="eyebrow">Название</span>
-                    <input
-                      type="text"
+                    <AutocompleteInput
                       value={t1Name}
-                      onChange={(e) => setT1Name(e.target.value)}
+                      onChange={(v) => { setT1Name(v); if (t1Locked) { setT1Locked(false); setT1Player1(''); setT1Player2(''); } }}
+                      onSelect={(team) => {
+                        setT1Player1(team.players[0] || '');
+                        setT1Player2(team.players[1] || '');
+                        setT1Locked(true);
+                      }}
                       placeholder="Введите название команды…"
-                      style={{ width: '100%' }}
-                      autoComplete="off"
+                      token={token}
+                      searchFn={(q) => searchTeams(q, token)}
                     />
                   </label>
                   <label style={{ display: 'block', marginBottom: 8 }}>
@@ -604,6 +613,7 @@ export default function Admin() {
                       onChange={setT1Player1}
                       placeholder="Введите имя игрока…"
                       token={token}
+                      disabled={t1Locked}
                     />
                   </label>
                   <label style={{ display: 'block', marginBottom: 0 }}>
@@ -613,6 +623,7 @@ export default function Admin() {
                       onChange={setT1Player2}
                       placeholder="Введите имя игрока…"
                       token={token}
+                      disabled={t1Locked}
                     />
                   </label>
                 </fieldset>
@@ -622,13 +633,17 @@ export default function Admin() {
                   <legend style={{ fontFamily: 'var(--display-font)', fontSize: 14, color: 'var(--magenta)' }}>Команда 2</legend>
                   <label style={{ display: 'block', marginBottom: 8 }}>
                     <span className="eyebrow">Название</span>
-                    <input
-                      type="text"
+                    <AutocompleteInput
                       value={t2Name}
-                      onChange={(e) => setT2Name(e.target.value)}
+                      onChange={(v) => { setT2Name(v); if (t2Locked) { setT2Locked(false); setT2Player1(''); setT2Player2(''); } }}
+                      onSelect={(team) => {
+                        setT2Player1(team.players[0] || '');
+                        setT2Player2(team.players[1] || '');
+                        setT2Locked(true);
+                      }}
                       placeholder="Введите название команды…"
-                      style={{ width: '100%' }}
-                      autoComplete="off"
+                      token={token}
+                      searchFn={(q) => searchTeams(q, token)}
                     />
                   </label>
                   <label style={{ display: 'block', marginBottom: 8 }}>
@@ -638,6 +653,7 @@ export default function Admin() {
                       onChange={setT2Player1}
                       placeholder="Введите имя игрока…"
                       token={token}
+                      disabled={t2Locked}
                     />
                   </label>
                   <label style={{ display: 'block', marginBottom: 0 }}>
@@ -647,6 +663,7 @@ export default function Admin() {
                       onChange={setT2Player2}
                       placeholder="Введите имя игрока…"
                       token={token}
+                      disabled={t2Locked}
                     />
                   </label>
                 </fieldset>
