@@ -11,9 +11,8 @@ import { SeasonTabs, type SeasonTab } from './SeasonTabs';
 import { RainbowStripe } from './RainbowStripe';
 
 const MODE_TABS: SeasonTab[] = [
-  { id: 'all', label: 'Все' },
-  { id: '1x1', label: '1×1' },
-  { id: '2x2', label: '2×2' },
+  { id: '1x1', label: 'Легенды 1×1' },
+  { id: '2x2', label: 'Легенды 2×2' },
 ];
 
 interface StandingsTableProps {
@@ -31,10 +30,9 @@ export function StandingsTable({
   lastUpdated,
   isLoading = false,
 }: StandingsTableProps) {
-  const [modeFilter, setModeFilter] = useState('all');
+  const [modeFilter, setModeFilter] = useState('1x1');
 
   const filtered = useMemo(() => {
-    if (modeFilter === 'all') return entries;
     return entries.filter((e) => e.mode === modeFilter);
   }, [entries, modeFilter]);
 
