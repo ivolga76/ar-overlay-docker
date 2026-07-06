@@ -1381,12 +1381,13 @@ app.get('/api/leaderboard', (req, res) => {
   const rows = query(
     `SELECT * FROM (
        SELECT 
-         tp.id as participant_id,
-         tp.name as participant_name,
-         tp.type as participant_type,
-         t.id as tournament_id,
-         t.name as tournament_name,
-         t.mode as tournament_mode,
+          tp.id as participant_id,
+          tp.name as participant_name,
+          tp.type as participant_type,
+          t.id as tournament_id,
+          t.name as tournament_name,
+          t.mode as tournament_mode,
+          t.season_id,
          ts.total_points,
          ts.rank as tournament_rank,
          u.display_name as organizer_name,

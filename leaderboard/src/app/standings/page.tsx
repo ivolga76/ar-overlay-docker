@@ -1,6 +1,7 @@
 // Global Standings page — all completed tournaments leaderboard
 // ISR revalidated every 60 seconds
-// Supports season and mode filters via searchParams
+// Mode tabs (1x1, 2x2, Legends 1x1, Legends 2x2) filter client-side.
+// Season filter switches the active season for the "1x1" / "2x2" tabs.
 
 import type { Metadata } from 'next';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -19,23 +20,26 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 interface Props {
-  searchParams: Promise<{ season?: string; mode?: string }>;
+  searchParams: Promise<{ season?: string }>;
 }
 
 export default async function StandingsPage({ searchParams }: Props) {
-  const { season, mode } = await searchParams;
+  const { season } = await searchParams;
   const [entries, seasons] = await Promise.all([
-    getGlobalLeaderboard(100, mode || undefined, season || undefined),
+    // Load ALL data (no mode/season filter) — client filters by active season + mode
+    getGlobalLeaderboard(100),
     getSeasons(),
   ]);
 
   const activeSeasonId = season || (seasons.length > 0 ? seasons[seasons.length - 1].id : null);
-  const activeSeasonName = seasons.find((s) => s.id === activeSeasonId)?.name || 'Все сезоны';
+  const activeSeasonName = seasons.find((s) => s.id === activeSeasonId)?.name || 'Текущий сезон';
 
+  // Stats: count only current season entries for the stat bar
+  const currentSeasonEntries = entries.filter((e) => e.seasonId === activeSeasonId);
   const stats = {
-    totalPlayers: new Set(entries.map((e) => e.nickname)).size,
-    totalTournaments: new Set(entries.map((e) => e.tournamentId)).size,
-    topMmr: entries.length > 0 ? Math.max(...entries.map((e) => e.mmr)) : 0,
+    totalPlayers: new Set(currentSeasonEntries.map((e) => e.nickname)).size,
+    totalTournaments: new Set(currentSeasonEntries.map((e) => e.tournamentId)).size,
+    topMmr: currentSeasonEntries.length > 0 ? Math.max(...currentSeasonEntries.map((e) => e.mmr)) : 0,
   };
 
   return (
@@ -72,12 +76,6 @@ export default async function StandingsPage({ searchParams }: Props) {
         {/* Season filter links */}
         {seasons.length > 1 && (
           <div className="flex justify-center gap-2 pb-4 flex-wrap">
-            <a
-              href="/standings"
-              className={`chip text-xs ${!season ? 'season-tab active' : ''}`}
-            >
-              Все сезоны
-            </a>
             {seasons.map((s) => (
               <a
                 key={s.id}
@@ -92,10 +90,11 @@ export default async function StandingsPage({ searchParams }: Props) {
       </div>
 
       <StandingsTable
-        title={activeSeasonId ? `${activeSeasonName}` : 'Глобальный рейтинг'}
+        title={activeSeasonName}
         subtitle={`${stats.totalPlayers} игроков из ${stats.totalTournaments} завершённых турниров. MMR рассчитывается по очкам, победам и поражениям.`}
         entries={entries}
         lastUpdated={formatDate(new Date().toISOString())}
+        activeSeasonId={activeSeasonId}
       />
     </main>
   );

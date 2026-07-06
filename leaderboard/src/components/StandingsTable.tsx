@@ -11,8 +11,10 @@ import { SeasonTabs, type SeasonTab } from './SeasonTabs';
 import { RainbowStripe } from './RainbowStripe';
 
 const MODE_TABS: SeasonTab[] = [
-  { id: '1x1', label: 'Легенды 1×1' },
-  { id: '2x2', label: 'Легенды 2×2' },
+  { id: '1x1', label: '1×1' },
+  { id: '2x2', label: '2×2' },
+  { id: 'legends-1x1', label: 'Легенды 1×1' },
+  { id: 'legends-2x2', label: 'Легенды 2×2' },
 ];
 
 interface StandingsTableProps {
@@ -21,6 +23,7 @@ interface StandingsTableProps {
   entries: StandingEntry[];
   lastUpdated?: string;
   isLoading?: boolean;
+  activeSeasonId?: string | null;
 }
 
 export function StandingsTable({
@@ -29,12 +32,21 @@ export function StandingsTable({
   entries,
   lastUpdated,
   isLoading = false,
+  activeSeasonId,
 }: StandingsTableProps) {
   const [modeFilter, setModeFilter] = useState('1x1');
 
   const filtered = useMemo(() => {
-    return entries.filter((e) => e.mode === modeFilter);
-  }, [entries, modeFilter]);
+    return entries.filter((e) => {
+      if (modeFilter === '1x1' || modeFilter === '2x2') {
+        // Current season only
+        return e.mode === modeFilter && e.seasonId === activeSeasonId;
+      }
+      // Legends: all seasons, filter by mode
+      const legendMode = modeFilter === 'legends-1x1' ? '1x1' : '2x2';
+      return e.mode === legendMode;
+    });
+  }, [entries, modeFilter, activeSeasonId]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 pb-12">

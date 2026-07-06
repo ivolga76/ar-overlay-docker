@@ -291,6 +291,7 @@ function enrichStandings(entries: LeaderboardEntry[]): StandingEntry[] {
       wins?: number;
       losses?: number;
       mmr?: number;
+      season_id?: string | null;
     };
     const wins = raw.wins ?? 0;
     const losses = raw.losses ?? 0;
@@ -307,6 +308,7 @@ function enrichStandings(entries: LeaderboardEntry[]): StandingEntry[] {
       tournamentName: entry.tournament_name,
       tournamentId: entry.tournament_id,
       mode: entry.tournament_mode,
+      seasonId: entry.season_id ?? null,
       isTeam: entry.participant_type === 'team',
       organizerName: entry.organizer_name,
     };

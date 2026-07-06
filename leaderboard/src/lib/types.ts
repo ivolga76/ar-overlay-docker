@@ -14,6 +14,7 @@ export interface LeaderboardEntry {
   tournament_id: string;
   tournament_name: string;
   tournament_mode: TournamentMode;
+  season_id: string | null;
   total_points: number;
   tournament_rank: number;
   organizer_name: string | null;
@@ -31,6 +32,7 @@ export interface StandingEntry {
   tournamentName: string;
   tournamentId: string;
   mode: TournamentMode;
+  seasonId: string | null;
   isTeam: boolean;
   organizerName: string | null;
 }
