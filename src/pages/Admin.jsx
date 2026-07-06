@@ -171,20 +171,18 @@ export default function Admin() {
       setShowCreateModal(false);
       resetModalFields();
 
-      // Sync local TournamentContext: set mode and add participants
-      setMode(newTournamentMode);
+      // Sync local TournamentContext: clear old, set mode, add participants
+      setMode(newTournamentMode, true);
       if (newTournamentMode === '1x1') {
         if (p1Name.trim()) addPlayer(p1Name.trim());
         if (p2Name.trim()) addPlayer(p2Name.trim());
       } else {
-        // For 2x2, addTeam then explicitly switch mode
         if (t1Name.trim()) {
           addTeam(t1Name.trim(), t1Player1.trim() || 'Игрок 1', t1Player2.trim() || 'Игрок 2');
         }
         if (t2Name.trim()) {
           addTeam(t2Name.trim(), t2Player1.trim() || 'Игрок 1', t2Player2.trim() || 'Игрок 2');
         }
-        setMode('2x2');
       }
       // Use started (status='active') not created (status='draft')
       setActiveTournament(started || created);

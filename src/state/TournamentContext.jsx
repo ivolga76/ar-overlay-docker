@@ -448,19 +448,22 @@ export function TournamentProvider({ children, overlayUserId = null }) {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  const setMode = useCallback((mode) => {
+  const setMode = useCallback((mode, clearParticipants = false) => {
     setState((current) => {
       const committed = commitCurrentRound(current);
       const nextMode = mode === '2x2' ? '2x2' : '1x1';
-      const list = nextMode === '2x2' ? committed.teams : committed.players;
+      const nextState = clearParticipants
+        ? { ...committed, players: [], teams: [] }
+        : committed;
+      const list = nextMode === '2x2' ? nextState.teams : nextState.players;
       return touch({
-        ...committed,
+        ...nextState,
         mode: nextMode,
         currentParticipantId: list[0]?.id || '',
         previousPlayerOrTeamId: list[1]?.id || list[0]?.id || '',
         currentPoints: 0,
         tasks: [],
-        extensions: { ...committed.extensions, complications: [] },
+        extensions: { ...nextState.extensions, complications: [] },
       });
     });
   }, []);
