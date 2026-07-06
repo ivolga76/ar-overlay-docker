@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import AutocompleteInput from '../components/AutocompleteInput.jsx';
 import { useTournament } from '../state/TournamentContext.jsx';
 import { useAuth } from '../state/AuthContext.jsx';
 import AdminOverlayTab from './AdminOverlayTab.jsx';
@@ -53,6 +54,15 @@ export default function Admin() {
   const [newTournamentRounds, setNewTournamentRounds] = useState(1);
   const [newTournamentSeasonId, setNewTournamentSeasonId] = useState('');
   const [newTournamentName, setNewTournamentName] = useState('');
+  // ── Player/team fields ──────────────────────────────────────
+  const [p1Name, setP1Name] = useState('');
+  const [p2Name, setP2Name] = useState('');
+  const [t1Name, setT1Name] = useState('');
+  const [t1Player1, setT1Player1] = useState('');
+  const [t1Player2, setT1Player2] = useState('');
+  const [t2Name, setT2Name] = useState('');
+  const [t2Player1, setT2Player1] = useState('');
+  const [t2Player2, setT2Player2] = useState('');
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState(null);
   const [seasons, setSeasons] = useState([]);
@@ -102,11 +112,44 @@ export default function Admin() {
     return () => window.removeEventListener('ws-message', handleWsMessage);
   }, [loadActiveTournament]);
 
+  /** Reset modal form fields to defaults */
+  function resetModalFields() {
+    setNewTournamentMode('1x1');
+    setNewTournamentType('pve');
+    setNewTournamentRounds(1);
+    setNewTournamentName('');
+    setP1Name('');
+    setP2Name('');
+    setT1Name('');
+    setT1Player1('');
+    setT1Player2('');
+    setT2Name('');
+    setT2Player1('');
+    setT2Player2('');
+    setCreateError(null);
+  }
+
   const handleCreateTournament = async (e) => {
     e.preventDefault();
     setCreateSubmitting(true);
     setCreateError(null);
     try {
+      // Build participants array from modal fields
+      const participants = [];
+      if (newTournamentMode === '1x1') {
+        if (p1Name.trim()) participants.push({ name: p1Name.trim(), type: 'player' });
+        if (p2Name.trim()) participants.push({ name: p2Name.trim(), type: 'player' });
+      } else {
+        if (t1Name.trim()) {
+          const t1players = [t1Player1.trim(), t1Player2.trim()].filter(Boolean);
+          participants.push({ name: t1Name.trim(), type: 'team', players: t1players });
+        }
+        if (t2Name.trim()) {
+          const t2players = [t2Player1.trim(), t2Player2.trim()].filter(Boolean);
+          participants.push({ name: t2Name.trim(), type: 'team', players: t2players });
+        }
+      }
+
       // Auto-name: count existing tournaments + 1
       const list = await getTournaments(token);
       const nextNumber = (list?.length || 0) + 1;
@@ -117,17 +160,32 @@ export default function Admin() {
         name,
         mode: newTournamentMode,
         totalRounds: newTournamentRounds,
+        type: newTournamentType,
         season_id: newTournamentSeasonId || undefined,
+        participants: participants.length > 0 ? participants : undefined,
       }, token);
 
       // Auto-start the tournament
       const started = await startTournament(created.id, token);
 
       setShowCreateModal(false);
-      setNewTournamentName('');
-      setNewTournamentMode('1x1');
-      setNewTournamentType('pve');
-      setNewTournamentRounds(1);
+      resetModalFields();
+
+      // Sync local TournamentContext: set mode and add participants
+      setMode(newTournamentMode);
+      if (newTournamentMode === '1x1') {
+        if (p1Name.trim()) addPlayer(p1Name.trim());
+        if (p2Name.trim()) addPlayer(p2Name.trim());
+      } else {
+        // For 2x2, addTeam then explicitly switch mode
+        if (t1Name.trim()) {
+          addTeam(t1Name.trim(), t1Player1.trim() || 'Игрок 1', t1Player2.trim() || 'Игрок 2');
+        }
+        if (t2Name.trim()) {
+          addTeam(t2Name.trim(), t2Player1.trim() || 'Игрок 1', t2Player2.trim() || 'Игрок 2');
+        }
+        setMode('2x2');
+      }
       // Use started (status='active') not created (status='draft')
       setActiveTournament(started || created);
       setActiveTab('overlay');
@@ -472,10 +530,10 @@ export default function Admin() {
 
       {/* ── New Tournament Modal ──────────────────────────── */}
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowCreateModal(false); resetModalFields(); }}>
           <form
-            className="modal-content tech-panel"
-            style={{ maxWidth: 420, padding: 24 }}
+            className="modal-content tech-panel create-tournament-modal"
+            style={{ maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}
             onClick={(e) => e.stopPropagation()}
             onSubmit={handleCreateTournament}
           >
@@ -502,6 +560,100 @@ export default function Admin() {
                 <option value="2x2">2×2</option>
               </select>
             </label>
+
+            {/* ── Player / Team fields ────────────────────────── */}
+            {newTournamentMode === '1x1' ? (
+              <>
+                <label style={{ display: 'block', marginBottom: 12 }}>
+                  <span className="eyebrow">Игрок 1</span>
+                  <AutocompleteInput
+                    value={p1Name}
+                    onChange={setP1Name}
+                    placeholder="Введите имя игрока…"
+                    token={token}
+                  />
+                </label>
+                <label style={{ display: 'block', marginBottom: 12 }}>
+                  <span className="eyebrow">Игрок 2</span>
+                  <AutocompleteInput
+                    value={p2Name}
+                    onChange={setP2Name}
+                    placeholder="Введите имя игрока…"
+                    token={token}
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                {/* Team 1 */}
+                <fieldset style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', marginBottom: 14 }}>
+                  <legend style={{ fontFamily: 'var(--display-font)', fontSize: 14, color: 'var(--cyan)' }}>Команда 1</legend>
+                  <label style={{ display: 'block', marginBottom: 8 }}>
+                    <span className="eyebrow">Название</span>
+                    <input
+                      type="text"
+                      value={t1Name}
+                      onChange={(e) => setT1Name(e.target.value)}
+                      placeholder="Введите название команды…"
+                      style={{ width: '100%' }}
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label style={{ display: 'block', marginBottom: 8 }}>
+                    <span className="eyebrow">Игрок 1</span>
+                    <AutocompleteInput
+                      value={t1Player1}
+                      onChange={setT1Player1}
+                      placeholder="Введите имя игрока…"
+                      token={token}
+                    />
+                  </label>
+                  <label style={{ display: 'block', marginBottom: 0 }}>
+                    <span className="eyebrow">Игрок 2</span>
+                    <AutocompleteInput
+                      value={t1Player2}
+                      onChange={setT1Player2}
+                      placeholder="Введите имя игрока…"
+                      token={token}
+                    />
+                  </label>
+                </fieldset>
+
+                {/* Team 2 */}
+                <fieldset style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', marginBottom: 14 }}>
+                  <legend style={{ fontFamily: 'var(--display-font)', fontSize: 14, color: 'var(--magenta)' }}>Команда 2</legend>
+                  <label style={{ display: 'block', marginBottom: 8 }}>
+                    <span className="eyebrow">Название</span>
+                    <input
+                      type="text"
+                      value={t2Name}
+                      onChange={(e) => setT2Name(e.target.value)}
+                      placeholder="Введите название команды…"
+                      style={{ width: '100%' }}
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label style={{ display: 'block', marginBottom: 8 }}>
+                    <span className="eyebrow">Игрок 1</span>
+                    <AutocompleteInput
+                      value={t2Player1}
+                      onChange={setT2Player1}
+                      placeholder="Введите имя игрока…"
+                      token={token}
+                    />
+                  </label>
+                  <label style={{ display: 'block', marginBottom: 0 }}>
+                    <span className="eyebrow">Игрок 2</span>
+                    <AutocompleteInput
+                      value={t2Player2}
+                      onChange={setT2Player2}
+                      placeholder="Введите имя игрока…"
+                      token={token}
+                    />
+                  </label>
+                </fieldset>
+              </>
+            )}
 
             <label style={{ display: 'block', marginBottom: 12 }}>
               <span className="eyebrow">Тип</span>
@@ -546,7 +698,7 @@ export default function Admin() {
               <button
                 type="button"
                 className="roulette-btn"
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => { setShowCreateModal(false); resetModalFields(); }}
                 style={{ padding: '8px 16px' }}
               >
                 Отмена

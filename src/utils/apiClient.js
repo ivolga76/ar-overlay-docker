@@ -44,10 +44,10 @@ export async function getTournament(id, token) {
   return await apiCall(`/api/tournaments/${id}`, { token });
 }
 
-export async function createTournament({ name, mode, totalRounds, season_id }, token) {
+export async function createTournament({ name, mode, totalRounds, season_id, type, participants }, token) {
   const data = await apiCall('/api/tournaments', {
     method: 'POST',
-    body: { name, mode, totalRounds, season_id },
+    body: { name, mode, totalRounds, season_id, type, participants },
     token,
   });
   return data.tournament;
