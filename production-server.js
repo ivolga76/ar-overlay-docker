@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws';
 import { initDatabase, getDb, query, queryOne, run, closeDatabase, saveToDisk } from './db/connection.js';
 import { migrate } from './db/migrate.js';
 import { DEFAULT_STATE, GAME_FIELDS } from './shared/state-fields.js';
+import { importFromSheets } from './import-sheets.js';
 
 const PORT = 3001;
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -2505,6 +2506,21 @@ app.get('/api/admin/stats', (req, res) => {
     rounds: totalRounds.count,
     lastTournament,
   });
+});
+
+// POST /api/import-sheets — import data from Google Sheets (admin only)
+app.post('/api/import-sheets', async (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const { sheets } = req.body || {};
+  try {
+    const result = await importFromSheets({ sheets: sheets || undefined });
+    res.json({ ok: true, result });
+  } catch (err) {
+    console.error('[import-sheets] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/players — list all players (from tournament_participants + players table)

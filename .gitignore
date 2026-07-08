@@ -27,3 +27,5 @@ skills-lock.json
 .codewhale/
 .deepseek/
 .hermes/
+**/.codewhale/*
+!**/.codewhale/constitution.json
