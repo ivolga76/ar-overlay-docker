@@ -33,7 +33,7 @@ export default async function StandingsPage({ searchParams }: Props) {
   // 1. seasonEntries — imported Google Sheets ratings for current season tabs (1x1, 2x2)
   // 2. legendsEntries — all completed tournament results for legends tabs
   const [seasonEntries, legendsEntries] = await Promise.all([
-    getGlobalLeaderboard(200, undefined, activeSeasonId),
+    getGlobalLeaderboard(200, undefined, activeSeasonId ?? undefined) as Promise<StandingEntry[]>,
     getGlobalLeaderboard(200),
   ]);
   const entries = [...seasonEntries, ...legendsEntries];
