@@ -1367,6 +1367,41 @@ app.get('/api/leaderboard', (req, res) => {
   }
   params.push(limit);
 
+  // If mode + season_id specified, check imported Google Sheets ratings first
+  if ((mode === '1x1' || mode === '2x2') && seasonId) {
+    const imported = query(
+      `SELECT nickname as participant_name,
+              mmr, wins, losses, streak,
+              rank as tournament_rank,
+              season_id
+       FROM season_player_ratings
+       WHERE season_id = ? AND mode = ?
+       ORDER BY rank
+       LIMIT ?`,
+      [seasonId, mode, limit]
+    );
+    if (imported.length > 0) {
+      const participantType = mode === '2x2' ? 'team' : 'player';
+      const result = imported.map(r => ({
+        participant_id: 'imported-' + r.participant_name,
+        participant_name: r.participant_name,
+        participant_type: participantType,
+        tournament_id: 'imported',
+        tournament_name: null,
+        tournament_mode: mode,
+        season_id: r.season_id,
+        total_points: 0,
+        tournament_rank: r.tournament_rank,
+        organizer_name: null,
+        wins: r.wins,
+        losses: r.losses,
+        mmr: r.mmr,
+        rn: 1,
+      }));
+      return res.json({ leaderboard: result });
+    }
+  }
+
   // Aggregate wins/losses per player (across all tournaments)
   const aggParams = [];
   let aggFilters = '';

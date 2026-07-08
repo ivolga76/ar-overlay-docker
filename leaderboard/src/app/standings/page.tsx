@@ -25,17 +25,21 @@ interface Props {
 
 export default async function StandingsPage({ searchParams }: Props) {
   const { season } = await searchParams;
-  const [entries, seasons] = await Promise.all([
-    // Load ALL data (no mode/season filter) — client filters by active season + mode
-    getGlobalLeaderboard(100),
-    getSeasons(),
-  ]);
-
+  const seasons = await getSeasons();
   const activeSeasonId = season || (seasons.length > 0 ? seasons[seasons.length - 1].id : null);
   const activeSeasonName = seasons.find((s) => s.id === activeSeasonId)?.name || 'Текущий сезон';
 
-  // Stats: count only current season entries for the stat bar
-  const currentSeasonEntries = entries.filter((e) => e.seasonId === activeSeasonId);
+  // Two data sources:
+  // 1. seasonEntries — imported Google Sheets ratings for current season tabs (1x1, 2x2)
+  // 2. legendsEntries — all completed tournament results for legends tabs
+  const [seasonEntries, legendsEntries] = await Promise.all([
+    getGlobalLeaderboard(200, undefined, activeSeasonId),
+    getGlobalLeaderboard(200),
+  ]);
+  const entries = [...seasonEntries, ...legendsEntries];
+
+  // Stats: use imported ratings for current season
+  const currentSeasonEntries = seasonEntries.filter((e) => e.seasonId === activeSeasonId);
   const stats = {
     totalPlayers: new Set(currentSeasonEntries.map((e) => e.nickname)).size,
     totalTournaments: new Set(currentSeasonEntries.map((e) => e.tournamentId)).size,
