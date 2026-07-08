@@ -1350,69 +1350,124 @@ app.post('/api/tournaments/:id/rounds', (req, res) => {
 // ── Leaderboard ───────────────────────────────────────────────
 
 // GET /api/leaderboard — global (public)
+// When mode + season_id are provided, merges imported ratings + tournament results using players.current_mmr.
 app.get('/api/leaderboard', (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
   const mode = req.query.mode; // optional: '1x1' or '2x2'
   const seasonId = req.query.season_id; // optional: filter by season
 
-  const params = [];
-  let filters = '';
-  if (mode === '1x1' || mode === '2x2') {
-    filters += ' AND t.mode = ?';
-    params.push(mode);
-  }
-  if (seasonId) {
-    filters += ' AND t.season_id = ?';
-    params.push(seasonId);
-  }
-  params.push(limit);
-
-  // If mode + season_id specified, check imported Google Sheets ratings first
+  // If mode + season_id specified: merge imported ratings + tournament results
   if ((mode === '1x1' || mode === '2x2') && seasonId) {
+    const participantType = mode === '2x2' ? 'team' : 'player';
+
+    // 1. Imported ratings from Google Sheets
     const imported = query(
-      `SELECT nickname as participant_name,
-              mmr, wins, losses, streak,
-              rank as tournament_rank,
-              season_id
+      `SELECT nickname as participant_name, mmr, wins, losses, streak,
+              rank as sheet_rank, season_id
        FROM season_player_ratings
        WHERE season_id = ? AND mode = ?
-       ORDER BY rank
-       LIMIT ?`,
-      [seasonId, mode, limit]
+       ORDER BY rank`,
+      [seasonId, mode]
     );
-    if (imported.length > 0) {
-      const participantType = mode === '2x2' ? 'team' : 'player';
-      const result = imported.map(r => ({
-        participant_id: 'imported-' + r.participant_name,
+
+    // 2. Tournament results (wins/losses from real tournaments in this season)
+    const tournamentStats = query(
+      `SELECT tp.name as participant_name,
+              COUNT(DISTINCT t.id) as tournaments_played,
+              COALESCE(SUM(ts.total_points), 0) as total_points,
+              MAX(ts.rank) as best_rank,
+              COALESCE(SUM(CASE WHEN ts.rank = 1 THEN 1 ELSE 0 END), 0) as tournament_wins,
+              COALESCE(SUM(CASE WHEN ts.rank > 1 THEN 1 ELSE 0 END), 0) as tournament_losses
+       FROM tournament_standings ts
+       JOIN tournament_participants tp ON ts.participant_id = tp.id
+       JOIN tournaments t ON ts.tournament_id = t.id
+       WHERE t.status = 'completed'
+         AND t.mode = ?
+         AND t.season_id = ?
+       GROUP BY tp.name`,
+      [mode, seasonId]
+    );
+
+    // 3. Live MMR from players table (updated by Elo on tournament completion + import)
+    const playerMmrs = query(
+      `SELECT display_name as participant_name, current_mmr as mmr
+       FROM players WHERE current_mmr IS NOT NULL`
+    );
+
+    // Build merged map by participant_name
+    const map = new Map();
+
+    // Seed with imported data
+    for (const r of imported) {
+      map.set(r.participant_name.toLowerCase(), {
+        participant_name: r.participant_name,
+        mmr: r.mmr,
+        wins: r.wins || 0,
+        losses: r.losses || 0,
+        tournaments_played: (r.wins || 0) + (r.losses || 0),
+        total_points: 0,
+        source: 'imported',
+      });
+    }
+
+    // Overlay tournament stats (add wins/losses)
+    for (const t of tournamentStats) {
+      const key = t.participant_name.toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        existing.wins += t.tournament_wins || 0;
+        existing.losses += t.tournament_losses || 0;
+        existing.tournaments_played += t.tournaments_played || 0;
+        existing.total_points += t.total_points || 0;
+        existing.source = 'merged';
+      } else {
+        map.set(key, {
+          participant_name: t.participant_name,
+          mmr: 1000,
+          wins: t.tournament_wins || 0,
+          losses: t.tournament_losses || 0,
+          tournaments_played: t.tournaments_played || 0,
+          total_points: t.total_points || 0,
+          source: 'tournament',
+        });
+      }
+    }
+
+    // Override MMR with live Elo from players table
+    for (const p of playerMmrs) {
+      const key = p.participant_name.toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        existing.mmr = p.mmr;
+      }
+    }
+
+    // Convert to array, sort by MMR desc, apply limit
+    const result = [...map.values()]
+      .sort((a, b) => b.mmr - a.mmr)
+      .slice(0, limit)
+      .map((r, i) => ({
+        participant_id: r.participant_name.toLowerCase().replace(/\s+/g, '-'),
         participant_name: r.participant_name,
         participant_type: participantType,
-        tournament_id: 'imported',
+        tournament_id: null,
         tournament_name: null,
         tournament_mode: mode,
-        season_id: r.season_id,
-        total_points: 0,
-        tournament_rank: r.tournament_rank,
+        season_id: seasonId,
+        total_points: r.total_points,
+        tournament_rank: i + 1,
         organizer_name: null,
         wins: r.wins,
         losses: r.losses,
         mmr: r.mmr,
         rn: 1,
       }));
-      return res.json({ leaderboard: result });
-    }
+
+    return res.json({ leaderboard: result });
   }
 
-  // Aggregate wins/losses per player (across all tournaments)
-  const aggParams = [];
-  let aggFilters = '';
-  if (mode === '1x1' || mode === '2x2') {
-    aggFilters += ' AND t2.mode = ?';
-    aggParams.push(mode);
-  }
-  if (seasonId) {
-    aggFilters += ' AND t2.season_id = ?';
-    aggParams.push(seasonId);
-  }
+  // No mode/season filters: return all completed tournament results (legends)
+  const params = [limit];
 
   const rows = query(
     `SELECT * FROM (
@@ -1447,15 +1502,15 @@ app.get('/api/leaderboard', (req, res) => {
            FROM round_results GROUP BY tournament_id, round_number
          ) rm ON rr.tournament_id = rm.tournament_id AND rr.round_number = rm.round_number
          JOIN tournaments t2 ON rr.tournament_id = t2.id
-         WHERE t2.status = 'completed' ${aggFilters}
+         WHERE t2.status = 'completed'
          GROUP BY tp2.name
        ) agg ON tp.name = agg.name
-       WHERE t.status = 'completed' ${filters}
+       WHERE t.status = 'completed'
      ) sub
      WHERE rn = 1
      ORDER BY mmr DESC
      LIMIT ?`,
-    [...aggParams, ...params]
+    params
   );
 
   res.json({ leaderboard: rows });

@@ -274,6 +274,7 @@ function importRatings(players, seasonId, mode) {
     run('DELETE FROM season_player_ratings WHERE season_id = ? AND mode = ?', [seasonId, mode]);
   }
 
+  let playersUpdated = 0;
   const now = new Date().toISOString();
   for (const p of players) {
     run(
@@ -281,9 +282,22 @@ function importRatings(players, seasonId, mode) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [seasonId, mode, p.rank, p.nickname, p.wins, p.losses, p.streak || 0, p.mmr, now]
     );
+
+    // Для 1x1 — обновляем players.current_mmr (синхронизация с импортированным рейтингом)
+    if (mode === '1x1') {
+      const player = queryOne('SELECT id, current_mmr FROM players WHERE display_name = ?', [p.nickname]);
+      if (player) {
+        run('UPDATE players SET current_mmr = ? WHERE id = ?', [p.mmr, player.id]);
+        playersUpdated++;
+      } else {
+        const id = randomUUID();
+        run('INSERT INTO players (id, display_name, current_mmr) VALUES (?, ?, ?)', [id, p.nickname, p.mmr]);
+        playersUpdated++;
+      }
+    }
   }
   saveToDisk();
-  return { upserted: players.length };
+  return { upserted: players.length, playersUpdated };
 }
 
 /** Импорт охотников (players). Обновляет embark_id, discord_name, часы. */
@@ -497,7 +511,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
     } else if (r.skipped) {
       console.log(`  ${key}: ПРОПУЩЕНО — ${r.reason}`);
     } else if (r.upserted !== undefined) {
-      console.log(`  ${key}: ${r.upserted} записей обновлено`);
+      const extra = r.playersUpdated !== undefined ? ` (${r.playersUpdated} MMR синхронизировано)` : '';
+      console.log(`  ${key}: ${r.upserted} записей обновлено${extra}`);
     } else if (r.inserted !== undefined) {
       console.log(`  ${key}: ${r.inserted} записей добавлено`);
     } else if (r.parsed !== undefined) {
