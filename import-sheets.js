@@ -120,8 +120,15 @@ function parseRatings(rows) {
   return players;
 }
 
-/** Парсит архивный рейтинг (1х1 или 2х2). */
-function parseArchiveRatings(rows) {
+/** Парсит архивный рейтинг (1х1 или 2х2).
+ *  archive1x1: Место, Ник, Победы, Поражения, Побед подряд
+ *  archive2x2: Место, Ник, Победа, Побед подряд, Поражение (другой порядок!)
+ */
+function parseArchiveRatings(rows, mode = '1x1') {
+  // Определяем формат по заголовку (строка 0)
+  const header = rows[0] || [];
+  const is2x2 = mode === '2x2' || header.some(h => h && h.includes('Побед подряд') && !h.includes('Поражения'));
+
   const players = [];
   let rank = 1;
   for (let i = 1; i < rows.length; i++) {
@@ -129,14 +136,23 @@ function parseArchiveRatings(rows) {
     const place = (r[0] || r[1] || '').trim();
     const nickIdx = r[1] === 'Ник' ? 2 : (r[1] && !isNaN(parseInt(r[1])) ? 2 : 1);
     const nick = r[nickIdx]?.trim();
-    const winsRaw = r[nickIdx + 1]?.trim();
-    const lossesRaw = r[nickIdx + 2]?.trim();
-    const streakRaw = r[nickIdx + 3]?.trim();
+
+    let winsRaw, lossesRaw, streakRaw;
+    if (is2x2) {
+      // archive2x2: Ник, Победа, Побед подряд, Поражение
+      winsRaw = r[nickIdx + 1]?.trim();
+      streakRaw = r[nickIdx + 2]?.trim();
+      lossesRaw = r[nickIdx + 3]?.trim();
+    } else {
+      // archive1x1: Ник, Победы, Поражения, Побед подряд
+      winsRaw = r[nickIdx + 1]?.trim();
+      lossesRaw = r[nickIdx + 2]?.trim();
+      streakRaw = r[nickIdx + 3]?.trim();
+    }
 
     if (!nick || nick === 'Ник' || nick === 'Команда') continue;
     if (place.startsWith('#')) continue;
     if (nick.startsWith('https://') || nick.startsWith('t.me/')) continue;
-    // Пропускаем rows с датой обновления
     if (nick.includes('Дата последнего обновления')) continue;
 
     const wins = parseIntSafe(winsRaw);
@@ -144,7 +160,7 @@ function parseArchiveRatings(rows) {
     const streak = parseIntSafe(streakRaw);
     const mmr = 1000 + wins * 25 - losses * 15 + streak * 5;
 
-    players.push({ rank, nickname: nick, wins, losses, mmr });
+    players.push({ rank, nickname: nick, wins, losses, streak, mmr });
     rank++;
   }
   return players;
@@ -208,6 +224,61 @@ function parseContracts(rows, category) {
     }
   }
   return contracts;
+}
+
+/** Парсит матчи (1×1 или 2×2). Колонки: Номер матча, Дата, Формат, Игрок/Команда A, Игрок/Команда B, Победитель, Карта, Запись */
+function parseMatches(rows) {
+  const matches = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const num = r[1]?.trim();
+    const date = r[2]?.trim();
+    const format = (r[3]?.trim() || '').toUpperCase();
+    const playerA = r[4]?.trim();
+    const playerB = r[5]?.trim();
+    const winner = r[6]?.trim();
+    const map = r[7]?.trim();
+    const vod = r[8]?.trim();
+
+    if (!playerA || !playerB) continue;
+    // Skip header-like rows
+    if (playerA === 'Игрок A' || playerA === 'Команда A') continue;
+
+    matches.push({
+      match_number: parseIntSafe(num),
+      date: date || null,
+      format: format === 'PVE' ? 'pve' : format === 'PVP' ? 'pvp' : 'pve',
+      player_a: playerA,
+      player_b: playerB,
+      winner: winner || null,
+      map: map || null,
+      vod_url: vod === 'Смотреть матч' ? null : (vod || null),
+    });
+  }
+  return matches;
+}
+
+/** Парсит составы команд 2×2. Колонки: Номер, Команда, Игрок A, Игрок B */
+function parseTeams(rows) {
+  const teams = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const num = r[1]?.trim();
+    const teamName = r[2]?.trim();
+    const playerA = r[3]?.trim();
+    const playerB = r[4]?.trim();
+
+    if (!teamName || teamName === 'Команда') continue;
+    if (!playerA && !playerB) continue;
+
+    teams.push({
+      team_number: parseIntSafe(num),
+      team_name: teamName,
+      player_a: playerA || null,
+      player_b: playerB || null,
+    });
+  }
+  return teams;
 }
 
 /** Парсит протоколы. */
@@ -360,6 +431,49 @@ function importContracts(contracts, seasonId, category) {
   return { inserted: contracts.length };
 }
 
+/** Импорт матчей. */
+function importMatches(matches, seasonId, mode) {
+  if (matches.length === 0) return { inserted: 0 };
+
+  // Удаляем старые матчи для этого сезона и режима
+  run('DELETE FROM sheet_matches WHERE season_id = ? AND mode = ?', [seasonId, mode]);
+
+  let inserted = 0;
+  for (const m of matches) {
+    const id = randomUUID();
+    run(
+      `INSERT INTO sheet_matches (id, season_id, mode, match_number, match_date, format,
+         player_a, player_b, winner, map_name, vod_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, seasonId, mode, m.match_number, m.date, m.format,
+       m.player_a, m.player_b, m.winner, m.map, m.vod_url]
+    );
+    inserted++;
+  }
+  saveToDisk();
+  return { inserted };
+}
+
+/** Импорт составов команд. */
+function importTeams(teams, seasonId) {
+  if (teams.length === 0) return { inserted: 0 };
+
+  run('DELETE FROM sheet_teams WHERE season_id = ?', [seasonId]);
+
+  let inserted = 0;
+  for (const t of teams) {
+    const id = randomUUID();
+    run(
+      `INSERT INTO sheet_teams (id, season_id, team_number, team_name, player_a, player_b)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, seasonId, t.team_number, t.team_name, t.player_a, t.player_b]
+    );
+    inserted++;
+  }
+  saveToDisk();
+  return { inserted };
+}
+
 /** Импорт протоколов. Удаляет старые для season_id, вставляет из sheets. */
 function importProtocols(protocols, seasonId) {
   if (protocols.length === 0) return { inserted: 0 };
@@ -426,7 +540,7 @@ export async function importFromSheets(options = {}) {
       case 'ratings': {
         let players;
         if (sheet.season === SEASON_1_ID) {
-          players = parseArchiveRatings(rows);
+          players = parseArchiveRatings(rows, sheet.mode);
         } else {
           players = parseRatings(rows);
         }
@@ -468,11 +582,24 @@ export async function importFromSheets(options = {}) {
         }
         break;
       }
-      case 'matches':
+      case 'matches': {
+        const matches = parseMatches(rows);
+        console.log(`[import]   распознано ${matches.length} матчей`);
+        if (!dryRun) {
+          result = importMatches(matches, sheet.season, sheet.mode);
+        } else {
+          result = { parsed: matches.length, sample: matches.slice(0, 3) };
+        }
+        break;
+      }
       case 'teams': {
-        // Пока только статистика
-        console.log(`[import]   матчи/команды — пропущено (требуется ручной импорт)`);
-        result = { skipped: true, rows: rows.length - 1, reason: 'matches/teams require tournament context' };
+        const teams = parseTeams(rows);
+        console.log(`[import]   распознано ${teams.length} команд`);
+        if (!dryRun) {
+          result = importTeams(teams, sheet.season);
+        } else {
+          result = { parsed: teams.length, sample: teams.slice(0, 3) };
+        }
         break;
       }
     }

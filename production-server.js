@@ -2550,6 +2550,70 @@ app.get('/api/seasons/:id/teams', (req, res) => {
   res.json({ teams });
 });
 
+// GET /api/seasons/:id/sheet-matches — match history from Google Sheets
+app.get('/api/seasons/:id/sheet-matches', (req, res) => {
+  const { mode } = req.query;
+
+  let sql = 'SELECT * FROM sheet_matches WHERE season_id = ?';
+  const params = [req.params.id];
+
+  if (mode === '1x1' || mode === '2x2') {
+    sql += ' AND mode = ?';
+    params.push(mode);
+  }
+  sql += ' ORDER BY match_number';
+
+  const matches = query(sql, params);
+  res.json({ matches });
+});
+
+// GET /api/seasons/:id/sheet-teams — team rosters from Google Sheets
+app.get('/api/seasons/:id/sheet-teams', (req, res) => {
+  const teams = query(
+    'SELECT * FROM sheet_teams WHERE season_id = ? ORDER BY team_number',
+    [req.params.id]
+  );
+  res.json({ teams });
+});
+
+// GET /api/players/:playerId/sheet-matches — match history for a player from Sheets
+app.get('/api/players/:playerId/sheet-matches', (req, res) => {
+  const { playerId } = req.params;
+
+  // Find the player's display name (try multiple sources)
+  let nickname = null;
+  const participant = queryOne('SELECT name FROM tournament_participants WHERE id = ?', [playerId]);
+  if (participant) nickname = participant.name;
+  if (!nickname) {
+    const player = queryOne('SELECT display_name FROM players WHERE id = ?', [playerId]);
+    if (player) nickname = player.display_name;
+  }
+  if (!nickname) nickname = playerId;
+
+  const matches = query(
+    `SELECT * FROM sheet_matches
+     WHERE player_a = ? OR player_b = ? OR winner = ?
+     ORDER BY match_number`,
+    [nickname, nickname, nickname]
+  );
+
+  // Case-insensitive fallback
+  if (matches.length === 0) {
+    const allMatches = query(
+      'SELECT * FROM sheet_matches ORDER BY match_number'
+    );
+    const searchLower = nickname.toLowerCase();
+    const filtered = allMatches.filter(
+      m => (m.player_a || '').toLowerCase() === searchLower
+        || (m.player_b || '').toLowerCase() === searchLower
+        || (m.winner || '').toLowerCase() === searchLower
+    );
+    return res.json({ matches: filtered, nickname });
+  }
+
+  res.json({ matches, nickname });
+});
+
 // GET /api/seasons/:id/ratings/1x1 — 1x1 ratings for a season
 app.get('/api/seasons/:id/ratings/1x1', (req, res) => {
   const imported = getImportedRatings(req.params.id, '1x1');

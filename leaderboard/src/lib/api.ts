@@ -271,6 +271,65 @@ export async function deleteBonusTask(id: string, token: string) {
   return fetchAdmin<any>(`/api/bonus-tasks/${id}`, token, { method: 'DELETE' });
 }
 
+// ── Sheet Matches & Teams ──────────────────────────────────
+
+export interface SheetMatch {
+  id: string;
+  season_id: string;
+  mode: string;
+  match_number: number;
+  match_date: string | null;
+  format: string;
+  player_a: string;
+  player_b: string;
+  winner: string | null;
+  map_name: string | null;
+  vod_url: string | null;
+}
+
+export interface SheetTeam {
+  id: string;
+  season_id: string;
+  team_number: number;
+  team_name: string;
+  player_a: string | null;
+  player_b: string | null;
+}
+
+export async function getSheetMatches(
+  seasonId: string,
+  mode?: string
+): Promise<SheetMatch[]> {
+  const params = mode ? `?mode=${mode}` : '';
+  const data = await fetchAPISafe<{ matches: SheetMatch[] }>(
+    `/api/seasons/${seasonId}/sheet-matches${params}`,
+    { matches: [] }
+  );
+  return data.matches ?? [];
+}
+
+export async function getPlayerSheetMatches(
+  playerId: string
+): Promise<{ matches: SheetMatch[]; nickname: string }> {
+  try {
+    return await fetchAPI<{ matches: SheetMatch[]; nickname: string }>(
+      `/api/players/${playerId}/sheet-matches`
+    );
+  } catch {
+    return { matches: [], nickname: '' };
+  }
+}
+
+export async function getSheetTeams(
+  seasonId: string
+): Promise<SheetTeam[]> {
+  const data = await fetchAPISafe<{ teams: SheetTeam[] }>(
+    `/api/seasons/${seasonId}/sheet-teams`,
+    { teams: [] }
+  );
+  return data.teams ?? [];
+}
+
 // ── Player Profile ─────────────────────────────────────────
 
 export async function getPlayerStats(
