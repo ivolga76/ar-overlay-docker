@@ -7,21 +7,21 @@
 
 @theme inline {
   /* ── Core palette (DESIGN.md dark) ─────────────────── */
-  --color-bg-primary: #11141c;
-  --color-bg-secondary: #131b2e;
-  --color-bg-card: #1a2030;
-  --color-bg-panel: rgba(19, 27, 46, 0.88);
-  --color-bg-overlay: rgba(17, 20, 28, 0.92);
+  --color-bg-primary: #0a0a0c;
+  --color-bg-secondary: #101116;
+  --color-bg-card: #15161b;
+  --color-bg-panel: rgba(13, 14, 18, 0.88);
+  --color-bg-overlay: rgba(7, 8, 11, 0.94);
 
   /* ── Text ──────────────────────────────────────────── */
-  --color-text-primary: #ffffff;
-  --color-text-body: #d4d8e0;
-  --color-text-muted: #6b7280;
+  --color-text-primary: #eae0cd;
+  --color-text-body: #cfc7b7;
+  --color-text-muted: #8b867b;
 
-  /* ── Primary accent — blue #6080ff ─────────────────── */
-  --color-accent-primary: #6080ff;
-  --color-accent-primary-hover: #7b95ff;
-  --color-accent-primary-dim: rgba(96, 128, 255, 0.15);
+  /* ── Primary accent — cyan #00e5ff ─────────────────── */
+  --color-accent-primary: #00e5ff;
+  --color-accent-primary-hover: #7ff4ff;
+  --color-accent-primary-dim: rgba(0, 229, 255, 0.12);
 
   /* ── Neon accents (ARC Raiders highlights) ─────────── */
   --color-accent-cyan: #00ffff;
@@ -157,13 +157,13 @@ body {
 
 .dark-panel {
   background: var(--color-bg-panel);
-  border: 1px solid rgba(96, 128, 255, 0.12);
+  border: 1px solid rgba(234, 224, 205, 0.12);
   border-radius: 12px;
 }
 
 .dark-panel-glass {
   background: rgba(19, 27, 46, 0.8);
-  border: 1px solid rgba(96, 128, 255, 0.15);
+  border: 1px solid rgba(234, 224, 205, 0.15);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 16px;
@@ -171,7 +171,7 @@ body {
 }
 
 .dark-panel-hover:hover {
-  border-color: rgba(96, 128, 255, 0.4);
+  border-color: rgba(234, 224, 205, 0.4);
   background: rgba(19, 27, 46, 0.95);
 }
 
@@ -185,7 +185,7 @@ body {
 
 .card-tilt:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(96, 128, 255, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(234, 224, 205, 0.3);
 }
 
 .card-glow-spread {
@@ -193,8 +193,8 @@ body {
 }
 
 .card-glow-spread:hover {
-  border-color: rgba(96, 128, 255, 0.5);
-  box-shadow: 0 0 24px rgba(96, 128, 255, 0.12);
+  border-color: rgba(234, 224, 205, 0.5);
+  box-shadow: 0 0 24px rgba(234, 224, 205, 0.12);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -240,9 +240,9 @@ body {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(96, 128, 255, 0.25) 20%,
-    rgba(96, 128, 255, 0.5) 50%,
-    rgba(96, 128, 255, 0.25) 80%,
+    rgba(234, 224, 205, 0.25) 20%,
+    rgba(234, 224, 205, 0.5) 50%,
+    rgba(234, 224, 205, 0.25) 80%,
     transparent 100%
   );
   border: none;
@@ -273,7 +273,7 @@ body {
 .btn-primary:hover {
   background: var(--color-accent-primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(96, 128, 255, 0.3);
+  box-shadow: 0 8px 24px rgba(234, 224, 205, 0.3);
 }
 
 .btn-secondary {
@@ -295,7 +295,7 @@ body {
 }
 
 .btn-secondary:hover {
-  background: rgba(96, 128, 255, 0.1);
+  background: rgba(234, 224, 205, 0.1);
   transform: translateY(-1px);
 }
 
@@ -312,13 +312,13 @@ body {
   text-transform: uppercase;
   padding: 8px 18px;
   border-radius: 6px;
-  border: 1px solid rgba(96, 128, 255, 0.15);
+  border: 1px solid rgba(234, 224, 205, 0.15);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-ghost:hover {
-  border-color: rgba(96, 128, 255, 0.4);
+  border-color: rgba(234, 224, 205, 0.4);
   color: var(--color-text-primary);
 }
 
@@ -339,9 +339,9 @@ body {
 }
 
 .chip-primary {
-  background: rgba(96, 128, 255, 0.15);
+  background: rgba(234, 224, 205, 0.15);
   color: var(--color-accent-primary);
-  border: 1px solid rgba(96, 128, 255, 0.25);
+  border: 1px solid rgba(234, 224, 205, 0.25);
 }
 
 .chip-gold {
@@ -413,12 +413,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(96, 128, 255, 0.2);
+  background: rgba(234, 224, 205, 0.2);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(96, 128, 255, 0.35);
+  background: rgba(234, 224, 205, 0.35);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -433,9 +433,9 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(96, 128, 255, 0.04) 0%,
-    rgba(96, 128, 255, 0.1) 40%,
-    rgba(96, 128, 255, 0.04) 80%
+    rgba(234, 224, 205, 0.04) 0%,
+    rgba(234, 224, 205, 0.1) 40%,
+    rgba(234, 224, 205, 0.04) 80%
   );
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
@@ -445,9 +445,9 @@ body {
 .skeleton-shimmer {
   background: linear-gradient(
     90deg,
-    rgba(96, 128, 255, 0.04) 0%,
-    rgba(96, 128, 255, 0.1) 40%,
-    rgba(96, 128, 255, 0.04) 80%
+    rgba(234, 224, 205, 0.04) 0%,
+    rgba(234, 224, 205, 0.1) 40%,
+    rgba(234, 224, 205, 0.04) 80%
   );
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
@@ -523,8 +523,8 @@ body {
 
 .crt-glow {
   text-shadow:
-    0 0 8px rgba(96, 128, 255, 0.3),
-    0 0 24px rgba(96, 128, 255, 0.1);
+    0 0 8px rgba(234, 224, 205, 0.3),
+    0 0 24px rgba(234, 224, 205, 0.1);
 }
 
 .crt-glow-cyan {
@@ -631,7 +631,7 @@ body {
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(96, 128, 255, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(234, 224, 205, 0.3), transparent);
   animation: scan-line 3s linear infinite;
   pointer-events: none;
 }
@@ -664,11 +664,11 @@ body {
 
 .animated-neon-bg {
   background: linear-gradient(-45deg,
-    rgba(96, 128, 255, 0.04),
+    rgba(234, 224, 205, 0.04),
     rgba(0, 255, 255, 0.03),
-    rgba(96, 128, 255, 0.05),
+    rgba(234, 224, 205, 0.05),
     rgba(255, 184, 0, 0.02),
-    rgba(96, 128, 255, 0.04)
+    rgba(234, 224, 205, 0.04)
   );
   background-size: 400% 400%;
   animation: gradient-shift 20s ease infinite;
@@ -688,8 +688,8 @@ body {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(96, 128, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(96, 128, 255, 0.025) 1px, transparent 1px);
+    linear-gradient(rgba(234, 224, 205, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(234, 224, 205, 0.025) 1px, transparent 1px);
   background-size: 50px 50px;
   animation: grid-scroll 8s linear infinite;
   pointer-events: none;
@@ -725,7 +725,7 @@ body {
 .spinner-ring {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(96, 128, 255, 0.1);
+  border: 3px solid rgba(234, 224, 205, 0.1);
   border-top-color: var(--color-accent-primary);
   border-radius: 50%;
   animation: spin-ring 0.8s linear infinite;
@@ -755,7 +755,7 @@ body {
   background: var(--color-bg-secondary);
   border-radius: 8px;
   padding: 4px;
-  border: 1px solid rgba(96, 128, 255, 0.1);
+  border: 1px solid rgba(234, 224, 205, 0.1);
 }
 
 .season-tab {
@@ -791,7 +791,7 @@ body {
   padding: 16px 24px;
   border-radius: 12px;
   background: rgba(19, 27, 46, 0.6);
-  border: 1px solid rgba(96, 128, 255, 0.1);
+  border: 1px solid rgba(234, 224, 205, 0.1);
 }
 
 .stat-value {
@@ -815,7 +815,7 @@ body {
    ═══════════════════════════════════════════════════════ */
 
 .site-footer {
-  border-top: 1px solid rgba(96, 128, 255, 0.08);
+  border-top: 1px solid rgba(234, 224, 205, 0.08);
   padding: 32px 0;
   text-align: center;
 }
@@ -843,7 +843,7 @@ body {
 
 .tournament-card {
   background: var(--color-bg-card);
-  border: 1px solid rgba(96, 128, 255, 0.12);
+  border: 1px solid rgba(234, 224, 205, 0.12);
   border-radius: 12px;
   padding: 24px;
   transition: all 0.3s ease;
@@ -852,7 +852,7 @@ body {
 }
 
 .tournament-card:hover {
-  border-color: rgba(96, 128, 255, 0.35);
+  border-color: rgba(234, 224, 205, 0.35);
   transform: translateY(-3px);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
@@ -897,7 +897,7 @@ body {
 
 .nav-link:hover {
   color: var(--color-text-primary);
-  background: rgba(96, 128, 255, 0.08);
+  background: rgba(234, 224, 205, 0.08);
 }
 
 .nav-link.active {
@@ -922,14 +922,14 @@ body {
   letter-spacing: 0.04em;
   padding: 6px 16px;
   border-radius: 6px;
-  background: rgba(96, 128, 255, 0.08);
+  background: rgba(234, 224, 205, 0.08);
   color: var(--color-accent-primary);
   text-decoration: none;
   transition: all 0.2s ease;
 }
 
 .fx-misc-breadcrumb a:hover {
-  background: rgba(96, 128, 255, 0.15);
+  background: rgba(234, 224, 205, 0.15);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -955,7 +955,7 @@ body {
 .fx-btn-perspective:hover {
   background: var(--color-accent-primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(96, 128, 255, 0.35);
+  box-shadow: 0 12px 32px rgba(234, 224, 205, 0.35);
 }
 
 .fx-btn-perspective::after {

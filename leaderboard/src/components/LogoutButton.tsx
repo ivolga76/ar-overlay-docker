@@ -11,7 +11,7 @@ export function LogoutButton() {
   }
 
   return (
-    <button onClick={handleLogout} className="nav-link text-xs py-2 text-text-muted bg-transparent border-none cursor-pointer w-full text-left">
+    <button onClick={handleLogout} className="font-heading font-semibold text-xs uppercase tracking-[0.05em] text-[#8b867b] hover:text-[#eae0cd] px-4 py-2 rounded-md bg-transparent border-none cursor-pointer w-full text-left transition-colors">
       Выйти
     </button>
   );

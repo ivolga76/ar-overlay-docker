@@ -49,17 +49,17 @@ export default function AdminTournamentsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <select value={filterSeason} onChange={e => setFilterSeason(e.target.value)} className="bg-bg-secondary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm">
+        <select value={filterSeason} onChange={e => setFilterSeason(e.target.value)} className="bg-bg-secondary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm">
           <option value="">Все сезоны</option>
           {seasons.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="bg-bg-secondary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm">
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="bg-bg-secondary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm">
           <option value="">Все статусы</option>
           <option value="draft">Черновик</option>
           <option value="active">Активен</option>
           <option value="completed">Завершён</option>
         </select>
-        <select value={filterMode} onChange={e => setFilterMode(e.target.value)} className="bg-bg-secondary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm">
+        <select value={filterMode} onChange={e => setFilterMode(e.target.value)} className="bg-bg-secondary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm">
           <option value="">Все режимы</option>
           <option value="1x1">1×1</option>
           <option value="2x2">2×2</option>

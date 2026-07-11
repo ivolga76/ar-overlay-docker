@@ -1,6 +1,6 @@
 'use client';
 // RatingRow — animated row for season 1×1 / 2×2 rating tables
-// Medal animations for top 3, spring entrance
+// V2: clean rank numbers (no emoji), matches PlayerRow design
 
 import { motion } from 'framer-motion';
 import type { SeasonRating } from '@/lib/types';
@@ -10,11 +10,12 @@ interface RatingRowProps {
   index: number;
 }
 
-const medals = ['🥇', '🥈', '🥉'];
-const rankGlowClasses = ['crt-glow-gold', 'text-text-primary', 'crt-glow-cyan'];
+const rankAccent = ['text-[#ffb800] [text-shadow:0_0_8px_rgba(255,184,0,0.4)]', 'text-[#c0c0c0]', 'text-[#cd7f32]'];
 
 export function RatingRow({ entry, index }: RatingRowProps) {
-  const isTop3 = index < 3;
+  const rank = index + 1;
+  const isTop3 = rank <= 3;
+  const mmrColor = entry.mmr > 1000 ? 'text-[#00e5ff]' : entry.mmr < 1000 ? 'text-[#ef4444]' : 'text-[#8b867b]';
 
   return (
     <motion.tr
@@ -26,58 +27,47 @@ export function RatingRow({ entry, index }: RatingRowProps) {
         damping: 30,
         delay: index * 0.04,
       }}
-      className="border-b border-[rgba(234,224,205,0.03)] hover:bg-[rgba(0,255,255,0.03)] transition-colors"
+      className="border-b border-[rgba(234,224,205,0.04)] hover:bg-[rgba(0,229,255,0.03)] transition-colors"
     >
       {/* Rank */}
       <td className="py-3 px-4">
-        {isTop3 ? (
-          <motion.span
-            className="inline-block text-lg"
-            initial={{ scale: 1.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.05 + index * 0.03 }}
-          >
-            {medals[index]}
-          </motion.span>
-        ) : (
-          <span className={`font-heading font-bold text-sm ${index < 5 ? 'text-text-primary' : 'text-text-muted'}`}>
-            {entry.rank}
-          </span>
-        )}
+        <span className={`inline-grid place-items-center w-8 h-8 rounded-md bg-[rgba(0,0,0,0.28)] border border-[rgba(234,224,205,0.1)] font-mono font-bold text-sm ${isTop3 ? rankAccent[rank - 1] : rank <= 5 ? 'text-[#eae0cd]' : 'text-[#8b867b]'}`}>
+          {rank.toString().padStart(2, '0')}
+        </span>
       </td>
 
       {/* Name */}
-      <td className="py-3 px-4 font-heading font-bold text-text-primary">
+      <td className="py-3 px-4 font-heading font-extrabold text-[#eae0cd] uppercase">
         {entry.participant_name}
       </td>
 
       {/* MMR */}
-      <td className="py-3 px-4 text-right mono-stat text-accent-magenta font-bold">
+      <td className={`py-3 px-4 text-right font-mono font-bold tabular-nums ${mmrColor}`}>
         {entry.mmr}
       </td>
 
       {/* Points */}
-      <td className="py-3 px-4 text-right mono-stat text-text-primary">
+      <td className="py-3 px-4 text-right font-mono tabular-nums text-[#eae0cd]">
         {entry.total_points}
       </td>
 
       {/* Wins */}
-      <td className="py-3 px-4 text-right mono-stat text-accent-green font-semibold">
+      <td className="py-3 px-4 text-right font-mono font-semibold tabular-nums text-[#22c55e]">
         {entry.wins}
       </td>
 
       {/* Losses */}
-      <td className="py-3 px-4 text-right mono-stat text-accent-red font-semibold">
+      <td className="py-3 px-4 text-right font-mono font-semibold tabular-nums text-[#ef4444]">
         {entry.losses}
       </td>
 
       {/* Tournaments played */}
-      <td className="py-3 px-4 text-right mono-stat text-text-muted">
+      <td className="py-3 px-4 text-right font-mono tabular-nums text-[#8b867b]">
         {entry.tournaments_played}
       </td>
 
       {/* Best score */}
-      <td className="py-3 px-4 text-right mono-stat text-accent-gold font-semibold">
+      <td className="py-3 px-4 text-right font-mono font-semibold tabular-nums text-[#ffb800]">
         {entry.best_score}
       </td>
     </motion.tr>

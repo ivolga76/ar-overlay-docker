@@ -1,5 +1,5 @@
 // Tournament Standings Detail — per-tournament leaderboard
-// ISR revalidated every 30 seconds
+// V2: matches new dark/cream/cyan design
 
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -8,35 +8,23 @@ import { PageHeader } from '@/components/PageHeader';
 import { getTournamentStandings, getTournament } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 
-interface Props {
-  params: Promise<{ tournamentId: string }>;
-}
-
+interface Props { params: Promise<{ tournamentId: string }> }
 export const revalidate = 30;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { tournamentId } = await params;
   const tournament = await getTournament(tournamentId);
   if (!tournament) return { title: 'Турнир не найден' };
-
   return {
     title: `${tournament.name} — AR Overlay`,
-    description: `Турнирная таблица «${tournament.name}» (${tournament.mode}). Результаты, MMR, победы и поражения.`,
-    openGraph: {
-      title: `${tournament.name} — Битва за Респект`,
-      description: `Турнирная таблица сообщества Arc Raiders`,
-    },
+    description: `Турнирная таблица «${tournament.name}» (${tournament.mode}).`,
+    openGraph: { title: `${tournament.name} — Битва за Респект`, description: 'Турнирная таблица сообщества Arc Raiders' },
   };
 }
 
 export default async function TournamentStandingsPage({ params }: Props) {
   const { tournamentId } = await params;
-
-  const [tournament, entries] = await Promise.all([
-    getTournament(tournamentId),
-    getTournamentStandings(tournamentId),
-  ]);
-
+  const [tournament, entries] = await Promise.all([getTournament(tournamentId), getTournamentStandings(tournamentId)]);
   if (!tournament) notFound();
 
   return (

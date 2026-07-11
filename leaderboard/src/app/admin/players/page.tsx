@@ -61,7 +61,7 @@ export default function AdminPlayersPage() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="bg-bg-secondary border border-[rgba(96,128,255,0.2)] rounded px-3 py-1.5 text-sm w-48"
+            className="bg-bg-secondary border border-[rgba(234, 224, 205,0.2)] rounded px-3 py-1.5 text-sm w-48"
             placeholder="Поиск по имени..."
           />
         </div>
@@ -77,9 +77,9 @@ export default function AdminPlayersPage() {
 
               {editName === p.display_name ? (
                 <div className="flex-1 flex items-center gap-2">
-                  <input value={editForm.display_name} onChange={e => setEditForm({...editForm, display_name: e.target.value})} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm w-36" placeholder="Имя" />
-                  <input value={editForm.embark_id} onChange={e => setEditForm({...editForm, embark_id: e.target.value})} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm w-44" placeholder="Embark ID" />
-                  <input value={editForm.discord_name} onChange={e => setEditForm({...editForm, discord_name: e.target.value})} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm w-36" placeholder="Discord" />
+                  <input value={editForm.display_name} onChange={e => setEditForm({...editForm, display_name: e.target.value})} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm w-36" placeholder="Имя" />
+                  <input value={editForm.embark_id} onChange={e => setEditForm({...editForm, embark_id: e.target.value})} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm w-44" placeholder="Embark ID" />
+                  <input value={editForm.discord_name} onChange={e => setEditForm({...editForm, discord_name: e.target.value})} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm w-36" placeholder="Discord" />
                   <button onClick={() => handleSave(p)} className="btn-ghost text-xs px-2">✓</button>
                   <button onClick={() => setEditName(null)} className="btn-ghost text-xs px-2">✕</button>
                 </div>

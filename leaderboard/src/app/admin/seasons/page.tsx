@@ -76,15 +76,15 @@ export default function AdminSeasonsPage() {
         <form onSubmit={handleCreate} className="dark-panel p-4 mb-6 flex flex-wrap gap-3 items-end">
           <div>
             <label className="block text-[10px] uppercase text-text-muted mb-1">ID</label>
-            <input value={formId} onChange={e => setFormId(e.target.value)} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm w-32" placeholder="season-3" required />
+            <input value={formId} onChange={e => setFormId(e.target.value)} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm w-32" placeholder="season-3" required />
           </div>
           <div>
             <label className="block text-[10px] uppercase text-text-muted mb-1">Название</label>
-            <input value={formName} onChange={e => setFormName(e.target.value)} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm w-48" placeholder="Season 3" required />
+            <input value={formName} onChange={e => setFormName(e.target.value)} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm w-48" placeholder="Season 3" required />
           </div>
           <div>
             <label className="block text-[10px] uppercase text-text-muted mb-1">Описание</label>
-            <input value={formDesc} onChange={e => setFormDesc(e.target.value)} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm w-64" />
+            <input value={formDesc} onChange={e => setFormDesc(e.target.value)} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm w-64" />
           </div>
           <button type="submit" className="btn-primary text-sm">Создать</button>
           <button type="button" onClick={() => setShowCreate(false)} className="btn-ghost text-sm">Отмена</button>
@@ -104,7 +104,7 @@ export default function AdminSeasonsPage() {
               </span>
               {editId === s.id ? (
                 <div className="flex items-center gap-2">
-                  <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-xs">
+                  <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-xs">
                     <option value="active">Активен</option>
                     <option value="archived">Архив</option>
                   </select>

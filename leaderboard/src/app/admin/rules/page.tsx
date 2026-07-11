@@ -78,7 +78,7 @@ export default function AdminRulesPage() {
       <textarea
         value={text}
         onChange={e => setText(e.target.value)}
-        className="w-full h-[600px] bg-bg-secondary border border-[rgba(96,128,255,0.2)] rounded-lg p-4 text-sm text-text-primary font-mono leading-relaxed resize-y focus:outline-none focus:border-accent-primary transition-colors"
+        className="w-full h-[600px] bg-bg-secondary border border-[rgba(234, 224, 205,0.2)] rounded-lg p-4 text-sm text-text-primary font-mono leading-relaxed resize-y focus:outline-none focus:border-accent-primary transition-colors"
         placeholder="Введите текст правил..."
         spellCheck={false}
       />

@@ -78,15 +78,15 @@ export default function AdminProtocolsPage() {
 
       <div className="flex items-center gap-3 mb-4">
         <label className="text-xs text-text-muted">Сезон:</label>
-        <select value={seasonId} onChange={e => setSeasonId(e.target.value)} className="bg-bg-secondary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm">
+        <select value={seasonId} onChange={e => setSeasonId(e.target.value)} className="bg-bg-secondary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm">
           {seasons.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
 
       {showAdd && (
         <form onSubmit={handleAdd} className="dark-panel p-4 mb-4 flex flex-wrap gap-3 items-end">
-          <input value={form.text} onChange={e => setForm({...form, text: e.target.value})} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm w-96" placeholder="Текст протокола" required />
-          <input type="number" value={form.penalty_seconds} onChange={e => setForm({...form, penalty_seconds: +e.target.value})} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm w-20" min={0} />
+          <input value={form.text} onChange={e => setForm({...form, text: e.target.value})} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm w-96" placeholder="Текст протокола" required />
+          <input type="number" value={form.penalty_seconds} onChange={e => setForm({...form, penalty_seconds: +e.target.value})} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm w-20" min={0} />
           <button type="submit" className="btn-primary text-sm">Добавить</button>
           <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost text-sm">Отмена</button>
         </form>
@@ -100,8 +100,8 @@ export default function AdminProtocolsPage() {
             <div key={p.id} className="dark-panel p-3 flex items-center gap-3 text-sm">
               {editId === p.id ? (
                 <div className="flex-1 flex items-center gap-2">
-                  <input value={editForm.text || ''} onChange={e => setEditForm({...editForm, text: e.target.value})} className="flex-1 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" />
-                  <input type="number" value={editForm.penalty_seconds || 0} onChange={e => setEditForm({...editForm, penalty_seconds: +e.target.value})} className="w-20 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" />
+                  <input value={editForm.text || ''} onChange={e => setEditForm({...editForm, text: e.target.value})} className="flex-1 bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm" />
+                  <input type="number" value={editForm.penalty_seconds || 0} onChange={e => setEditForm({...editForm, penalty_seconds: +e.target.value})} className="w-20 bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm" />
                   <button onClick={() => handleUpdate(p.id)} className="btn-ghost text-xs px-2">✓</button>
                   <button onClick={() => setEditId(null)} className="btn-ghost text-xs px-2">✕</button>
                 </div>

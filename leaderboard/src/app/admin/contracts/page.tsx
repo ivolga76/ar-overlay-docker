@@ -88,18 +88,18 @@ export default function AdminContractsPage() {
 
       <div className="flex items-center gap-3 mb-4">
         <label className="text-xs text-text-muted">Сезон:</label>
-        <select value={seasonId} onChange={e => setSeasonId(e.target.value)} className="bg-bg-secondary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm">
+        <select value={seasonId} onChange={e => setSeasonId(e.target.value)} className="bg-bg-secondary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm">
           {seasons.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
 
       {showAdd && (
         <form onSubmit={handleAdd} className="dark-panel p-4 mb-4 flex flex-wrap gap-3 items-end">
-          <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm">
+          <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm">
             {CATEGORIES.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
           </select>
-          <input value={form.text} onChange={e => setForm({...form, text: e.target.value})} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm w-96" placeholder="Текст контракта" required />
-          <input type="number" value={form.points} onChange={e => setForm({...form, points: +e.target.value})} className="bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1.5 text-sm w-16" min={1} />
+          <input value={form.text} onChange={e => setForm({...form, text: e.target.value})} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm w-96" placeholder="Текст контракта" required />
+          <input type="number" value={form.points} onChange={e => setForm({...form, points: +e.target.value})} className="bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1.5 text-sm w-16" min={1} />
           <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={form.is_legendary} onChange={e => setForm({...form, is_legendary: e.target.checked})} /> Легендарный</label>
           <button type="submit" className="btn-primary text-sm">Добавить</button>
           <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost text-sm">Отмена</button>
@@ -118,8 +118,8 @@ export default function AdminContractsPage() {
               {c.is_legendary ? <span className="chip chip-gold text-[10px]">★</span> : null}
               {editId === c.id ? (
                 <div className="flex-1 flex items-center gap-2">
-                  <input value={editForm.text || ''} onChange={e => setEditForm({...editForm, text: e.target.value})} className="flex-1 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" />
-                  <input type="number" value={editForm.points || 1} onChange={e => setEditForm({...editForm, points: +e.target.value})} className="w-14 bg-bg-primary border border-[rgba(96,128,255,0.2)] rounded px-2 py-1 text-sm" />
+                  <input value={editForm.text || ''} onChange={e => setEditForm({...editForm, text: e.target.value})} className="flex-1 bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm" />
+                  <input type="number" value={editForm.points || 1} onChange={e => setEditForm({...editForm, points: +e.target.value})} className="w-14 bg-bg-primary border border-[rgba(234, 224, 205,0.2)] rounded px-2 py-1 text-sm" />
                   <button onClick={() => handleUpdate(c.id)} className="btn-ghost text-xs px-2">✓</button>
                   <button onClick={() => setEditId(null)} className="btn-ghost text-xs px-2">✕</button>
                 </div>
