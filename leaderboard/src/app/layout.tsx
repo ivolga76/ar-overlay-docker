@@ -7,36 +7,41 @@ const urbanist = Urbanist({
   variable: "--font-heading",
   subsets: ["latin"],
   weight: ["400", "600", "700", "800"],
+  display: "swap",
 });
 
 const barlow = Barlow({
   variable: "--font-body",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
-  weight: ["400", "700"],
+  weight: ["400", "600", "700"],
+  display: "swap",
 });
 
 const prompt = Prompt({
   variable: "--font-condensed",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "AR Overlay — Tournament Standings",
-  description: "Arc Raiders tournament leaderboard — Битва за Респект. Следи за рейтингом игроков и команд.",
+  title: "Битва за Респект — рейтинг ARC Raiders",
+  description:
+    "Лидерборд киберспортивных турниров по ARC Raiders: сезоны, MMR, режимы 1x1 и 2x2, архив матчей.",
   icons: {
     icon: "/favicon.ico",
   },
   openGraph: {
-    title: "Битва за Респект — AR Overlay",
-    description: "Турнирная таблица сообщества Arc Raiders",
+    title: "Битва за Респект — рейтинг ARC Raiders",
+    description: "Турнирная таблица сообщества ARC Raiders",
   },
 };
 
@@ -50,31 +55,30 @@ export default function RootLayout({
       lang="ru"
       className={`${urbanist.variable} ${barlow.variable} ${jetbrainsMono.variable} ${prompt.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col grunge-overlay">
+      <body className="min-h-full flex flex-col grunge-overlay leaderboard-shell">
         <RainbowBar />
-        {/* Header */}
-        <header className="sticky top-1 z-50 mx-auto w-full max-w-4xl mt-6 mb-2">
-          <nav className="dark-panel-glass px-6 py-3 flex items-center justify-between gap-6">
-            <a href="/" className="flex items-center gap-3 no-underline">
-              <span className="font-heading font-extrabold text-lg tracking-[0.04em] uppercase text-text-primary crt-glow">
-                ARC<span className="text-accent-primary">Raiders</span>
+        <header className="sticky top-3 z-50 mx-auto w-full max-w-6xl px-4 pt-2">
+          <nav className="leaderboard-nav">
+            <a href="/" className="brand-lockup no-underline" aria-label="Главная">
+              <span className="brand-mark">AR</span>
+              <span>
+                <span className="brand-title">Битва за Респект</span>
+                <span className="brand-subtitle">ARC Raiders tournament</span>
               </span>
             </a>
-            <div className="flex items-center gap-1">
-              <a href="/" className="nav-link active">Главная</a>
+            <div className="nav-actions">
+              <a href="/" className="nav-link">Главная</a>
               <a href="/standings" className="nav-link">Рейтинг</a>
               <a href="/archive" className="nav-link">Архив</a>
               <a href="/rules" className="nav-link">Правила</a>
-              <span className="w-px h-4 bg-[rgba(96,128,255,0.15)] mx-1" />
-              <a href="/login" className="nav-link text-accent-primary">Вход</a>
+              <a href="/login" className="nav-link nav-link-accent">Вход</a>
             </div>
           </nav>
         </header>
         {children}
-        {/* Footer */}
         <footer className="site-footer mt-auto">
           <p>
-            ARC Raiders &copy; {new Date().getFullYear()} ·{' '}
+            Битва за Респект · ARC Raiders tournament platform ·{" "}
             <a href="https://arcraiders.com" target="_blank" rel="noopener noreferrer">
               arcraiders.com
             </a>

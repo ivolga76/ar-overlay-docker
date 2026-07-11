@@ -1,19 +1,19 @@
 import type { NextConfig } from "next";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
-
-  // Turbopack root — avoid workspace detection conflict
+  output: "standalone",
   turbopack: {
-    root: __dirname,
+    root: projectRoot,
   },
-
-  // Allow images from external sources
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: '**',
+        protocol: "https",
+        hostname: "**",
       },
     ],
   },
