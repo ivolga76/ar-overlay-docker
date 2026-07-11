@@ -1780,7 +1780,7 @@ app.get('/api/players/:playerId', (req, res) => {
   mmrHistory.reverse();
 
   res.json({
-    playerId: participant.id,
+    playerId: participant?.id ?? playerRecord?.id ?? playerId,
     nickname,
     totalTournaments,
     totalWins,
