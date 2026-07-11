@@ -1390,8 +1390,9 @@ app.get('/api/leaderboard', (req, res) => {
     );
 
     // 3. Live MMR from players table (updated by Elo on tournament completion + import)
+    // Also fetch player IDs to use as participant_id for imported-only players
     const playerMmrs = query(
-      `SELECT display_name as participant_name, current_mmr as mmr
+      `SELECT id as player_id, display_name as participant_name, current_mmr as mmr
        FROM players WHERE current_mmr IS NOT NULL`
     );
 
@@ -1437,12 +1438,16 @@ app.get('/api/leaderboard', (req, res) => {
       }
     }
 
-    // Override MMR with live Elo from players table
+    // Override MMR with live Elo from players table, also set real player_id
     for (const p of playerMmrs) {
       const key = p.participant_name.toLowerCase();
       const existing = map.get(key);
       if (existing) {
         existing.mmr = p.mmr;
+        // Use real player ID from players table when available
+        if (p.player_id) {
+          existing.participant_id = p.player_id;
+        }
       }
     }
 
@@ -1606,11 +1611,15 @@ app.get('/api/players/:playerId', (req, res) => {
   // Determine if playerId looks like a UUID
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playerId);
 
-  let participant;
+  let participant = null;
+  let nickname = null;
+  let playerRecord = null;
+  let history = [];
+
+  // Try tournament_participants first
   if (isUuid) {
     participant = queryOne('SELECT * FROM tournament_participants WHERE id = ?', [playerId]);
   } else {
-    // Try exact name match first, then case-insensitive via JS fallback
     participant = queryOne('SELECT * FROM tournament_participants WHERE name = ?', [playerId]);
     if (!participant) {
       const allParticipants = query('SELECT * FROM tournament_participants');
@@ -1622,54 +1631,115 @@ app.get('/api/players/:playerId', (req, res) => {
     }
   }
 
+  if (participant) {
+    nickname = participant.name;
+
+    // Tournament history for this player
+    history = query(
+      `SELECT 
+         t.id as tournamentId,
+         t.name as tournamentName,
+         t.mode,
+         ts.rank,
+         ts.total_points as totalPoints,
+         ts.mmr_before as mmrBefore,
+         ts.mmr_after as mmrAfter,
+         ts.is_winner as isWinner,
+         t.completed_at as completedAt
+       FROM tournament_standings ts
+       JOIN tournaments t ON ts.tournament_id = t.id
+       JOIN tournament_participants tp ON ts.participant_id = tp.id
+       WHERE tp.name = ? AND t.status = 'completed'
+       ORDER BY t.completed_at DESC`,
+      [nickname]
+    );
+
+    if (participant.player_id) {
+      playerRecord = queryOne('SELECT * FROM players WHERE id = ?', [participant.player_id]);
+    }
+  }
+
+  // Fallback: search players table (for imported-only players without tournament participation)
   if (!participant) {
+    if (isUuid) {
+      playerRecord = queryOne('SELECT * FROM players WHERE id = ?', [playerId]);
+    } else {
+      playerRecord = queryOne('SELECT * FROM players WHERE display_name = ?', [playerId]);
+      if (!playerRecord) {
+        // Case-insensitive search in players
+        const allPlayers = query('SELECT * FROM players');
+        const searchLower = playerId.toLowerCase().replace(/\s+/g, '-');
+        playerRecord = allPlayers.find(
+          (p) => (p.display_name || '').toLowerCase().replace(/\s+/g, '-') === searchLower
+          || (p.display_name || '').toLowerCase() === playerId.toLowerCase()
+        ) || null;
+      }
+    }
+    if (playerRecord) {
+      nickname = playerRecord.display_name;
+    }
+  }
+
+  // Last resort: search season_player_ratings
+  if (!participant && !playerRecord) {
+    if (!isUuid) {
+      const ratings = query(
+        'SELECT * FROM season_player_ratings WHERE nickname = ? LIMIT 1',
+        [playerId]
+      );
+      if (ratings.length > 0) {
+        nickname = ratings[0].nickname;
+      } else {
+        // Case-insensitive
+        const allRatings = query('SELECT DISTINCT nickname FROM season_player_ratings');
+        const searchLower = playerId.toLowerCase().replace(/\s+/g, '-');
+        const found = allRatings.find(
+          (r) => (r.nickname || '').toLowerCase().replace(/\s+/g, '-') === searchLower
+          || (r.nickname || '').toLowerCase() === playerId.toLowerCase()
+        );
+        if (found) nickname = found.nickname;
+      }
+    }
+  }
+
+  if (!nickname) {
     return res.status(404).json({ error: 'Игрок не найден' });
   }
 
-  const nickname = participant.name;
-
-  // Get all completed tournament standings for this player (match by name across tournaments)
-  // Now includes real Elo data: mmr_before, mmr_after, is_winner
-  const history = query(
-    `SELECT 
-       t.id as tournamentId,
-       t.name as tournamentName,
-       t.mode,
-       ts.rank,
-       ts.total_points as totalPoints,
-       ts.mmr_before as mmrBefore,
-       ts.mmr_after as mmrAfter,
-       ts.is_winner as isWinner,
-       t.completed_at as completedAt
-     FROM tournament_standings ts
-     JOIN tournaments t ON ts.tournament_id = t.id
-     JOIN tournament_participants tp ON ts.participant_id = tp.id
-     WHERE tp.name = ? AND t.status = 'completed'
-     ORDER BY t.completed_at DESC`,
-    [nickname]
-  );
-
-  // Get player record from players table (via player_id link)
-  let playerRecord = null;
-  if (participant.player_id) {
-    playerRecord = queryOne('SELECT * FROM players WHERE id = ?', [participant.player_id]);
+  // If we found a playerRecord but no participant, try to find participant for additional data
+  if (!participant && playerRecord) {
+    const tp = queryOne(
+      'SELECT * FROM tournament_participants WHERE name = ? LIMIT 1',
+      [nickname]
+    );
+    if (tp) participant = tp;
   }
 
   // Current MMR from players table
   let currentMmr = playerRecord?.current_mmr ?? 1000;
+  // If no playerRecord, check season_player_ratings for MMR
+  if (!playerRecord) {
+    const rating = queryOne(
+      'SELECT mmr FROM season_player_ratings WHERE nickname = ? ORDER BY rank LIMIT 1',
+      [nickname]
+    );
+    if (rating?.mmr != null) currentMmr = rating.mmr;
+  }
 
   // Registration date: from players.created_at, or earliest tournament date as fallback
   let createdAt = playerRecord?.created_at ?? null;
   if (!createdAt && history.length > 0) {
-    // Earliest tournament completion date
     const earliest = history.reduce((a, b) =>
       (a.completedAt && (!b.completedAt || a.completedAt < b.completedAt)) ? a : b
     );
     createdAt = earliest.completedAt ?? null;
   }
 
-  // Player type: most common player_type across tournaments, or from current participant
+  // Player type
   const typeCounts = {};
+  if (participant?.player_type) {
+    typeCounts[participant.player_type] = 1;
+  }
   for (const h of history) {
     const tp = queryOne(
       'SELECT player_type FROM tournament_participants WHERE name = ? AND tournament_id = ?',
@@ -1678,10 +1748,6 @@ app.get('/api/players/:playerId', (req, res) => {
     if (tp?.player_type) {
       typeCounts[tp.player_type] = (typeCounts[tp.player_type] || 0) + 1;
     }
-  }
-  // Also check current participant's type
-  if (participant.player_type) {
-    typeCounts[participant.player_type] = (typeCounts[participant.player_type] || 0) + 1;
   }
   let playerType = null;
   let maxCount = 0;
