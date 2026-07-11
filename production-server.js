@@ -1373,6 +1373,7 @@ app.get('/api/leaderboard', (req, res) => {
     // 2. Tournament results (wins/losses from real tournaments in this season)
     const tournamentStats = query(
       `SELECT tp.name as participant_name,
+              tp.id as participant_id,
               COUNT(DISTINCT t.id) as tournaments_played,
               COALESCE(SUM(ts.total_points), 0) as total_points,
               MAX(ts.rank) as best_rank,
@@ -1401,6 +1402,7 @@ app.get('/api/leaderboard', (req, res) => {
     for (const r of imported) {
       map.set(r.participant_name.toLowerCase(), {
         participant_name: r.participant_name,
+        participant_id: r.participant_id || r.participant_name.toLowerCase().replace(/\s+/g, '-'),
         mmr: r.mmr,
         wins: r.wins || 0,
         losses: r.losses || 0,
@@ -1410,7 +1412,7 @@ app.get('/api/leaderboard', (req, res) => {
       });
     }
 
-    // Overlay tournament stats (add wins/losses)
+    // Overlay tournament stats (add wins/losses and real participant_id)
     for (const t of tournamentStats) {
       const key = t.participant_name.toLowerCase();
       const existing = map.get(key);
@@ -1419,10 +1421,12 @@ app.get('/api/leaderboard', (req, res) => {
         existing.losses += t.tournament_losses || 0;
         existing.tournaments_played += t.tournaments_played || 0;
         existing.total_points += t.total_points || 0;
+        existing.participant_id = t.participant_id || existing.participant_id;
         existing.source = 'merged';
       } else {
         map.set(key, {
           participant_name: t.participant_name,
+          participant_id: t.participant_id || t.participant_name.toLowerCase().replace(/\s+/g, '-'),
           mmr: 1000,
           wins: t.tournament_wins || 0,
           losses: t.tournament_losses || 0,
@@ -1447,7 +1451,7 @@ app.get('/api/leaderboard', (req, res) => {
       .sort((a, b) => b.mmr - a.mmr)
       .slice(0, limit)
       .map((r, i) => ({
-        participant_id: r.participant_name.toLowerCase().replace(/\s+/g, '-'),
+        participant_id: r.participant_id || r.participant_name.toLowerCase().replace(/\s+/g, '-'),
         participant_name: r.participant_name,
         participant_type: participantType,
         tournament_id: null,
@@ -1606,7 +1610,16 @@ app.get('/api/players/:playerId', (req, res) => {
   if (isUuid) {
     participant = queryOne('SELECT * FROM tournament_participants WHERE id = ?', [playerId]);
   } else {
+    // Try exact name match first, then case-insensitive via JS fallback
     participant = queryOne('SELECT * FROM tournament_participants WHERE name = ?', [playerId]);
+    if (!participant) {
+      const allParticipants = query('SELECT * FROM tournament_participants');
+      const searchLower = playerId.toLowerCase().replace(/\s+/g, '-');
+      participant = allParticipants.find(
+        (p) => p.name.toLowerCase().replace(/\s+/g, '-') === searchLower
+        || p.name.toLowerCase() === playerId.toLowerCase()
+      ) || null;
+    }
   }
 
   if (!participant) {
