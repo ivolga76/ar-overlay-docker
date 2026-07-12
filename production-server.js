@@ -1760,10 +1760,8 @@ app.get('/api/players/:playerId', (req, res) => {
   // Compute peak MMR and build mmrHistory (for chart)
   let peakMmr = currentMmr;
 
-  // Count tournament wins/losses from history
-  let totalWins = history.filter(h => h.isWinner === 1).length;
-  let totalLosses = history.filter(h => h.isWinner === 0).length;
-  const totalTournaments = history.length;
+  let totalWins = 0;
+  let totalLosses = 0;
 
   // If no tournament history, build it from sheet_matches
   if (history.length === 0) {
@@ -1798,31 +1796,12 @@ app.get('/api/players/:playerId', (req, res) => {
     }
   }
 
-  // Add sheet match wins/losses — only if not already counted via history
-  if (history.length === 0 || history[0]?.tournamentId === undefined) {
-    const sheetMatches = query(
-      `SELECT * FROM sheet_matches
-       WHERE player_a = ? OR player_b = ?
-       ORDER BY match_number`,
-      [nickname, nickname]
-    );
-    let allSheetMatches = sheetMatches;
-    if (allSheetMatches.length === 0) {
-      const allMatches = query('SELECT * FROM sheet_matches ORDER BY match_number');
-      const searchLower = nickname.toLowerCase();
-      allSheetMatches = allMatches.filter(
-        m => (m.player_a || '').toLowerCase() === searchLower
-          || (m.player_b || '').toLowerCase() === searchLower
-      );
-    }
-    for (const m of allSheetMatches) {
-      if (m.winner && m.winner.toLowerCase() === nickname.toLowerCase()) {
-        totalWins++;
-      } else {
-        totalLosses++;
-      }
-    }
-  }
+  // Count wins/losses from history (includes both tournaments and sheet matches)
+  totalWins = history.filter(h => h.isWinner === 1).length;
+  totalLosses = history.filter(h => h.isWinner === 0).length;
+  const totalTournaments = history.length;
+
+
 
   const mmrHistory = [];
   for (const h of history) {
