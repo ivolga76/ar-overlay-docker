@@ -1765,28 +1765,62 @@ app.get('/api/players/:playerId', (req, res) => {
   let totalLosses = history.filter(h => h.isWinner === 0).length;
   const totalTournaments = history.length;
 
-  // Add sheet match wins/losses (Google Sheets imported match history)
-  const sheetMatches = query(
-    `SELECT * FROM sheet_matches
-     WHERE player_a = ? OR player_b = ?
-     ORDER BY match_number`,
-    [nickname, nickname]
-  );
-  // Case-insensitive fallback for sheet matches
-  let allSheetMatches = sheetMatches;
-  if (allSheetMatches.length === 0) {
-    const allMatches = query('SELECT * FROM sheet_matches ORDER BY match_number');
-    const searchLower = nickname.toLowerCase();
-    allSheetMatches = allMatches.filter(
-      m => (m.player_a || '').toLowerCase() === searchLower
-        || (m.player_b || '').toLowerCase() === searchLower
+  // If no tournament history, build it from sheet_matches
+  if (history.length === 0) {
+    const allSheetForHistory = query(
+      `SELECT * FROM sheet_matches
+       WHERE player_a = ? OR player_b = ?
+       ORDER BY match_number`,
+      [nickname, nickname]
     );
+    if (allSheetForHistory.length === 0) {
+      const allM = query('SELECT * FROM sheet_matches ORDER BY match_number');
+      const searchLower = nickname.toLowerCase();
+      const filtered = allM.filter(
+        m => (m.player_a || '').toLowerCase() === searchLower
+          || (m.player_b || '').toLowerCase() === searchLower
+      );
+      allSheetForHistory.push(...filtered);
+    }
+    for (const m of allSheetForHistory) {
+      const isWin = m.winner && m.winner.toLowerCase() === nickname.toLowerCase();
+      history.push({
+        tournamentId: m.id,
+        tournamentName: `Матч #${m.match_number} (${m.format || 'pvp'})`,
+        mode: m.mode || '1x1',
+        rank: isWin ? 1 : 2,
+        totalPoints: 0,
+        mmrBefore: null,
+        mmrAfter: null,
+        isWinner: isWin ? 1 : 0,
+        completedAt: m.match_date || m.created_at || null,
+      });
+    }
   }
-  for (const m of allSheetMatches) {
-    if (m.winner && m.winner.toLowerCase() === nickname.toLowerCase()) {
-      totalWins++;
-    } else {
-      totalLosses++;
+
+  // Add sheet match wins/losses — only if not already counted via history
+  if (history.length === 0 || history[0]?.tournamentId === undefined) {
+    const sheetMatches = query(
+      `SELECT * FROM sheet_matches
+       WHERE player_a = ? OR player_b = ?
+       ORDER BY match_number`,
+      [nickname, nickname]
+    );
+    let allSheetMatches = sheetMatches;
+    if (allSheetMatches.length === 0) {
+      const allMatches = query('SELECT * FROM sheet_matches ORDER BY match_number');
+      const searchLower = nickname.toLowerCase();
+      allSheetMatches = allMatches.filter(
+        m => (m.player_a || '').toLowerCase() === searchLower
+          || (m.player_b || '').toLowerCase() === searchLower
+      );
+    }
+    for (const m of allSheetMatches) {
+      if (m.winner && m.winner.toLowerCase() === nickname.toLowerCase()) {
+        totalWins++;
+      } else {
+        totalLosses++;
+      }
     }
   }
 
