@@ -2712,14 +2712,36 @@ app.get('/api/admin/stats', (req, res) => {
   const user = requireAuth(req, res);
   if (!user) return;
 
+  // Seasons
   const activeSeasons = query("SELECT COUNT(*) as count FROM seasons WHERE status = 'active'");
   const totalSeasons = queryOne('SELECT COUNT(*) as count FROM seasons');
+
+  // Tournaments
   const totalTournaments = queryOne('SELECT COUNT(*) as count FROM tournaments');
   const activeTournaments = queryOne("SELECT COUNT(*) as count FROM tournaments WHERE status = 'active'");
   const completedTournaments = queryOne("SELECT COUNT(*) as count FROM tournaments WHERE status = 'completed'");
-  const totalPlayers = queryOne('SELECT COUNT(DISTINCT name) as count FROM tournament_participants');
-  const totalParticipants = queryOne('SELECT COUNT(*) as count FROM tournament_participants');
-  const totalRounds = queryOne('SELECT COUNT(*) as count FROM round_results');
+  const myTournaments = queryOne(
+    'SELECT COUNT(*) as count FROM tournaments WHERE user_id = ?',
+    [user.id]
+  );
+
+  // Players — count from players table + unique from season_player_ratings
+  const dbPlayers = queryOne('SELECT COUNT(*) as count FROM players');
+  const ratings1x1 = queryOne(
+    "SELECT COUNT(*) as count FROM season_player_ratings WHERE season_id = 'season-2' AND mode = '1x1'"
+  );
+  const ratings2x2 = queryOne(
+    "SELECT COUNT(*) as count FROM season_player_ratings WHERE season_id = 'season-2' AND mode = '2x2'"
+  );
+
+  // Sheet data
+  const sheetMatches = queryOne('SELECT COUNT(*) as count FROM sheet_matches');
+  const sheetTeams = queryOne('SELECT COUNT(*) as count FROM sheet_teams');
+
+  // Last import timestamp
+  const lastImport = queryOne(
+    'SELECT MAX(created_at) as last_import FROM sheet_matches'
+  );
 
   // Last completed tournament
   const lastTournament = queryOne(
@@ -2728,11 +2750,9 @@ app.get('/api/admin/stats', (req, res) => {
      WHERE t.status = 'completed' ORDER BY t.completed_at DESC LIMIT 1`
   );
 
-  // User's tournaments count
-  const myTournaments = queryOne(
-    'SELECT COUNT(*) as count FROM tournaments WHERE user_id = ?',
-    [user.id]
-  );
+  // Round results
+  const totalRounds = queryOne('SELECT COUNT(*) as count FROM round_results');
+  const totalParticipants = queryOne('SELECT COUNT(*) as count FROM tournament_participants');
 
   res.json({
     seasons: { total: totalSeasons.count, active: activeSeasons[0].count },
@@ -2743,8 +2763,17 @@ app.get('/api/admin/stats', (req, res) => {
       my: myTournaments.count,
     },
     players: {
-      total: totalPlayers.count,
+      total: dbPlayers.count,
       participants: totalParticipants.count,
+    },
+    ratings: {
+      '1x1': ratings1x1.count,
+      '2x2': ratings2x2.count,
+    },
+    sheets: {
+      matches: sheetMatches.count,
+      teams: sheetTeams.count,
+      lastImport: lastImport?.last_import || null,
     },
     rounds: totalRounds.count,
     lastTournament,

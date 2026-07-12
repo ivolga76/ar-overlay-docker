@@ -35,35 +35,39 @@ export default async function AdminDashboard() {
           <div className={statLabel}>Сезонов ({stats.seasons.active} активно)</div>
         </div>
         <div className={statCard}>
-          <div className={`${statValue} text-[#00e5ff]`}>{stats.tournaments.total}</div>
-          <div className={statLabel}>Турниров ({stats.tournaments.completed} завершено)</div>
-        </div>
-        <div className={statCard}>
-          <div className={`${statValue} text-[#ffb800]`}>{stats.tournaments.active}</div>
-          <div className={statLabel}>Активных сейчас</div>
-        </div>
-        <div className={statCard}>
-          <div className={`${statValue} text-[#22c55e]`}>{stats.players.total}</div>
+          <div className={`${statValue} text-[#00e5ff]`}>{stats.players.total}</div>
           <div className={statLabel}>Игроков в БД</div>
+        </div>
+        <div className={statCard}>
+          <div className={`${statValue} text-[#ffb800]`}>{stats.ratings?.['1x1'] ?? 0}</div>
+          <div className={statLabel}>В рейтинге 1×1</div>
+        </div>
+        <div className={statCard}>
+          <div className={`${statValue} text-[#ffb800]`}>{stats.ratings?.['2x2'] ?? 0}</div>
+          <div className={statLabel}>В рейтинге 2×2</div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className={statCard}>
-          <div className="text-sm text-[#eae0cd] font-mono font-bold">{stats.players.participants}</div>
-          <div className={statLabel}>Всего участий</div>
+          <div className="text-sm text-[#eae0cd] font-mono font-bold">{stats.sheets?.matches ?? 0}</div>
+          <div className={statLabel}>Матчей из Sheets</div>
         </div>
         <div className={statCard}>
-          <div className="text-sm text-[#eae0cd] font-mono font-bold">{stats.rounds}</div>
-          <div className={statLabel}>Раундов сыграно</div>
+          <div className="text-sm text-[#eae0cd] font-mono font-bold">{stats.sheets?.teams ?? 0}</div>
+          <div className={statLabel}>Команд из Sheets</div>
         </div>
         <div className={statCard}>
-          <div className="text-sm text-[#00e5ff] font-mono font-bold">{stats.tournaments.my}</div>
-          <div className={statLabel}>Моих турниров</div>
+          <div className="text-sm text-[#eae0cd] font-mono font-bold">{stats.tournaments.total}</div>
+          <div className={statLabel}>Турниров всего</div>
         </div>
         <div className={statCard}>
-          <div className="text-sm text-[#eae0cd] font-mono font-bold">{stats.lastTournament ? '✓' : '—'}</div>
-          <div className={statLabel}>Последний завершён</div>
+          <div className="text-sm text-[#22c55e] font-mono font-bold">
+            {stats.sheets?.lastImport
+              ? new Date(stats.sheets.lastImport).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+              : '—'}
+          </div>
+          <div className={statLabel}>Импорт Sheets</div>
         </div>
       </div>
 
