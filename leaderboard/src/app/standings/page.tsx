@@ -21,7 +21,7 @@ interface Props {
 
 export default async function StandingsPage({ searchParams }: Props) {
   const { season } = await searchParams;
-  const seasons = await getSeasons();
+  const seasons = await getSeasons('active');
   const activeSeasonId = season || (seasons.length > 0 ? seasons[seasons.length - 1].id : null);
   const activeSeasonName =
     seasons.find((s) => s.id === activeSeasonId)?.name || 'Текущий сезон';
