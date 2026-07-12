@@ -1,68 +1,51 @@
-# SESSION_HANDOFF — 2026-07-12
+# SESSION_HANDOFF — 2026-07-13 (продолжение)
 
-## Коммиты за день (20 total)
+## Коммиты (вторая половина сессии 12.07 + 13.07)
 
-### Первая половина (фон + данные)
 | Коммит | Что |
 |--------|-----|
-| `6f0e5b0` | Canvas dust particles — 180 дрейфующих частиц |
-| `553d61f` | Awesome Animated Background — purple/white flow (CodePen jmbGNd) |
-| `d72131d` | fix: rename animate-awesome-* → awesome-*-anim (Tailwind v4 conflict) |
-| `f0481d4` | feat: 9 белых вертикальных лучей (точная копия CodePen jmbGNd) |
-| `13e384a` | style: лучи ×2 медленнее, blur +200% |
-| `a1f19d4` | fix: двойной подсчёт sheet_matches в leaderboard |
-| `3aa55f2` | fix: #REF! в rank больше не пропускает игроков при импорте |
-| `3a756e8` | feat: кнопка импорта Google Sheets в админке |
-| `2b4dc26` | fix: standings показывает только active сезоны |
-| `1af144a` | fix: sheet_matches как tournament history |
-| `03bae78` | fix: пересчёт wins/losses после заполнения history |
-| `f61022d` | feat: инфографика истории турниров (WLRing, карточки) |
-| `c401682` | feat: замена истории турниров на виджеты аналитики (карты/противники) |
-| `05198a` | chore: update SESSION_HANDOFF + backup script |
-| `2ec40dd` | chore: force-add SESSION_HANDOFF.md |
-
-### Вторая половина (MMR-график + фиксы данных)
-| Коммит | Что |
-|--------|-----|
-| `4dce3a5` | **feat: retrospective Elo simulation** — MMR-график по sheet_matches |
-| `2132fbc` | **style: Catmull-Rom spline** — плавный график вместо угловатого |
-| `26bc00a` | **fix: leaderboard = Google Sheets** — убран Elo override, tournament merge |
-| `6394341` | **fix: case-insensitive opponent matching** — виджет «противник» для GOLYB_GENADYI |
-| `6a91f80` | **fix: cache: 'no-store' для player stats** — график всегда актуален |
+| `4dce3a5` | feat: retrospective Elo simulation — MMR-график по sheet_matches |
+| `2132fbc` | style: Catmull-Rom spline — плавный график |
+| `26bc00a` | fix: leaderboard = Google Sheets (убрал Elo override, tournament merge) |
+| `6394341` | fix: case-insensitive opponent matching |
+| `6a91f80` | fix: cache: 'no-store' для player stats |
+| `9765e80` | chore: update SESSION_HANDOFF + .gitignore |
+| `f5801af` | feat: admin dashboard — ratings, sheet data, last import date |
+| `6870c0f` | feat: 2x2 team roster в leaderboard + страница команды |
+| `91d0639` | fix: sheet-matches lookup — hyphenated slugs + case-insensitive |
+| `7f983e8` | style: team roster inline в 2x2 leaderboard |
+| `911b04d` | fix: const → let для teamRoster |
+| `47dfd9a` | fix: no cache for leaderboard/standings — instant updates after import |
+| `64d4158` | fix: PK ratings → (season_id, mode, rank) — supports duplicate nicks |
 
 ---
 
 ## Текущее состояние
 
-### MMR-график (новое)
-- **Retrospective Elo**: симуляция по всем sheet_matches сезона (K=32, база=1000)
-- Плавный Catmull-Rom сплайн (кубический Безье)
-- Отображается на `/player/[playerId]` при ≥2 матчей
-- Без кэша — обновляется мгновенно после импорта Sheets
-- Если есть турнирные данные (mmrAfter из tournament_standings) — приоритет у них
-
-### Лидерборд (исправлено)
-- `GET /api/leaderboard?mode=1x1&season_id=season-2` — **только season_player_ratings**
-- Больше не мержит tournament_standings, не переопределяет MMR из players.current_mmr
-- **82 игрока 1×1, 25 команд 2×2** — 1:1 с Google Sheets
-
-### Страница игрока
-- **Динамика MMR** — сплайн-график (новый)
-- **Самая частая карта** — топ-5, cyan бары
-- **Самый частый противник** — топ-5, magenta, кликабельные имена
-- Case-insensitive сравнение имён (фикс для GOLYB_GENADYI и др.)
-- Без fetch-кэша (`cache: 'no-store'`)
-
-### Данные (БД)
-- **82 игрока** 1×1, **25 команд** 2×2 (season-2, active)
-- **87 sheet_matches**, **24 sheet_teams**
-- season-1: archived
-- Локальные турниры удалены
-- Google Sheets: `1xbsVk-O1EbyaPWoh8lNynZSrH-Y5G3ft7P4GOGW7RB8`, 11 gid
+### Данные (после импорта 13.07)
+- **82 игрока** 1×1 (season-2), **24 команды** 2×2 (season-2)
+- **67 sheet_matches** 1×1, **19 sheet_matches** 2×2, **24 sheet_teams**
+- season-1: archived, season-2: active
 - Бэкап: `/opt/ar-overlay/.data/ar-overlay.db.bak-20260712`
 
+### Лидерборд
+- 1:1 с Google Sheets (только `season_player_ratings`)
+- 2×2: отображает состав команды в одну строку справа от названия
+- Без кэша — обновляется мгновенно после импорта
+
+### Страница игрока / команды
+- **MMR-график** — retrospective Elo + Catmull-Rom сплайн
+- **Аналитика** — карты + противники (case-insensitive)
+- **Команды**: состав, история матчей, аналитика — всё как у 1×1
+- Без fetch-кэша (`cache: 'no-store'`)
+
 ### Админка
-- Кнопка «Импортировать из Google Sheets» → `POST /api/import-sheets`
+- Дашборд: рейтинги 1×1/2×2, sheet-матчи, дата импорта
+- Кнопка импорта Google Sheets
+
+### БД
+- `season_player_ratings` PK: `(season_id, mode, rank)` (миграция 009)
+- Миграции: 001–009, авто-применяются при старте
 
 ---
 
@@ -74,19 +57,19 @@
 
 ## Pending
 - `streak` в tournament_standings — не заполняется
-- Страница игрока работает только для players с записью в `players` таблице (большинство из Google Sheets — только в `season_player_ratings`)
-- ММР в Google Sheets ≠ Elo-ММР (разные формулы) — график показывает Elo-траекторию
+- Страница игрока 404 для players только в `season_player_ratings` (без записи в `players` таблице)
 
 ---
 
 ## Ключевые файлы
 | Файл | Роль |
 |------|------|
-| `production-server.js` | API leaderboard, retrospective Elo, player stats, import-sheets |
-| `leaderboard/src/app/player/[playerId]/page.tsx` | Страница игрока: MMR-график, аналитика, статы |
-| `leaderboard/src/lib/api.ts` | API-клиент, getPlayerStats (no-store), enrichStandings |
-| `leaderboard/src/components/AnimatedBackground.tsx` | Фон — 9 лучей + тёмный градиент |
-| `leaderboard/src/app/standings/page.tsx` | Лидерборд: getGlobalLeaderboard с mode+season_id |
-| `leaderboard/src/app/globals.css` | @keyframes floatUp, .light/.x1–.x9, дизайн-система |
+| `production-server.js` | API: leaderboard, retrospective Elo, player stats, import-sheets |
+| `leaderboard/src/app/player/[playerId]/page.tsx` | Страница игрока/команды: MMR, аналитика, состав |
+| `leaderboard/src/app/standings/page.tsx` | Лидерборд: force-dynamic |
+| `leaderboard/src/app/admin/page.tsx` | Дашборд: рейтинги, sheets, импорт |
+| `leaderboard/src/lib/api.ts` | API-клиент: no-store кэш |
+| `leaderboard/src/components/PlayerRow.tsx` | Строка рейтинга: состав команды |
 | `import-sheets.js` | Парсер CSV из Google Sheets |
 | `db/schema.sql` | Полная схема БД |
+| `db/migrations/009_fix_ratings_pk.sql` | Миграция: PK (season_id, mode, rank) |
