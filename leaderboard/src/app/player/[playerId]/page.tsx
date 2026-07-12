@@ -226,10 +226,11 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
 
         // Most frequent opponent
         const oppCount: Record<string, number> = {};
+        const nickLower = stats.nickname.toLowerCase();
         for (const m of sheetMatches) {
-          const opp = m.player_a === stats.nickname ? m.player_b :
-                      m.player_b === stats.nickname ? m.player_a : null;
-          if (opp && opp !== stats.nickname) oppCount[opp] = (oppCount[opp] || 0) + 1;
+          const opp = (m.player_a || '').toLowerCase() === nickLower ? m.player_b :
+                      (m.player_b || '').toLowerCase() === nickLower ? m.player_a : null;
+          if (opp && opp.toLowerCase() !== nickLower) oppCount[opp] = (oppCount[opp] || 0) + 1;
         }
         const topOpp = Object.entries(oppCount).sort((a, b) => b[1] - a[1])[0];
 
