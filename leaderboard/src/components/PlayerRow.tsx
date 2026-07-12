@@ -30,11 +30,11 @@ export function PlayerRow({ entry, index }: PlayerRowProps) {
         <Link href={`/player/${entry.participantId}`} className="lb-player-name">
           {entry.nickname}
         </Link>
+        {entry.teamPlayerA && entry.teamPlayerB && (
+          <span className="lb-player-name text-[#00e5ff]"> ({entry.teamPlayerA} / {entry.teamPlayerB})</span>
+        )}
         <span>
           {entry.isTeam ? 'Команда' : 'Игрок'}
-          {entry.teamPlayerA && entry.teamPlayerB && (
-            <> · <span className="text-[#00e5ff]">{entry.teamPlayerA}</span> / <span className="text-[#ffb800]">{entry.teamPlayerB}</span></>
-          )}
           {entry.organizerName ? ` · ${entry.organizerName}` : ''}
         </span>
       </div>
