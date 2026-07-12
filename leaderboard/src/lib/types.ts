@@ -18,6 +18,8 @@ export interface LeaderboardEntry {
   total_points: number;
   tournament_rank: number;
   organizer_name: string | null;
+  team_player_a?: string | null;
+  team_player_b?: string | null;
 }
 
 /** Enriched standings entry matching the Google Sheets format */
@@ -35,6 +37,8 @@ export interface StandingEntry {
   seasonId: string | null;
   isTeam: boolean;
   organizerName: string | null;
+  teamPlayerA?: string | null;
+  teamPlayerB?: string | null;
 }
 
 /** Tournament detail from /api/tournaments/:id */
@@ -241,6 +245,7 @@ export interface PlayerStats {
   playerType?: string | null;
   mmrHistory?: MMRHistoryEntry[];
   history?: PlayerTournamentEntry[];
+  teamMembers?: { playerA: string; playerB: string } | null;
 }
 
 export interface PlayerTournamentEntry {

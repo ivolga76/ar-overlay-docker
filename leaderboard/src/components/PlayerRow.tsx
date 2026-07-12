@@ -31,7 +31,10 @@ export function PlayerRow({ entry, index }: PlayerRowProps) {
           {entry.nickname}
         </Link>
         <span>
-          {entry.isTeam ? 'Команда' : 'Игрок'} · {entry.tournamentName}
+          {entry.isTeam ? 'Команда' : 'Игрок'}
+          {entry.teamPlayerA && entry.teamPlayerB && (
+            <> · <span className="text-[#00e5ff]">{entry.teamPlayerA}</span> / <span className="text-[#ffb800]">{entry.teamPlayerB}</span></>
+          )}
           {entry.organizerName ? ` · ${entry.organizerName}` : ''}
         </span>
       </div>

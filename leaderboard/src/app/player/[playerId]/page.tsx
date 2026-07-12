@@ -171,15 +171,28 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
   const dividerLine = 'flex-1 h-px border-0 bg-[linear-gradient(90deg,transparent,rgba(234,224,205,0.15),transparent)]';
   const sectionTitle = 'font-heading font-bold text-sm uppercase tracking-[0.04em] text-[#00e5ff] flex-shrink-0';
 
+  const isTeam = !!stats.teamMembers;
+
   return (
     <main className="flex-1">
-      <PageHeader title={stats.nickname} subtitle="Детальная статистика игрока" backHref="/standings" backLabel="К рейтингу" />
+      <PageHeader title={stats.nickname} subtitle={isTeam ? 'Статистика команды' : 'Детальная статистика игрока'} backHref="/standings" backLabel="К рейтингу" />
+
+      {stats.teamMembers && (
+        <section className="max-w-4xl mx-auto px-4 pb-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-[#8b867b] tracking-wider uppercase">Состав команды:</span>
+            <span className="text-sm font-heading font-bold text-[#00e5ff]">{stats.teamMembers.playerA}</span>
+            <span className="text-[#8b867b]">/</span>
+            <span className="text-sm font-heading font-bold text-[#ffb800]">{stats.teamMembers.playerB}</span>
+          </div>
+        </section>
+      )}
 
       <section className="max-w-4xl mx-auto px-4 pb-4">
         <div className="flex flex-wrap items-center gap-3">
           {createdAt && (
             <span className="text-xs text-[#8b867b] tracking-wider uppercase">
-              Игрок с{' '}
+              {isTeam ? 'Команда с ' : 'Игрок с '}
               <time dateTime={createdAt} className="text-[#eae0cd] font-heading font-bold">{formatDate(createdAt)}</time>
             </span>
           )}

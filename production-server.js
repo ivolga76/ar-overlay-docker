@@ -1378,23 +1378,46 @@ app.get('/api/leaderboard', (req, res) => {
       playersMap.set(p.display_name.toLowerCase(), p.id);
     }
 
-    const result = ratings.map((r, i) => ({
-      participant_id: playersMap.get(r.participant_name.toLowerCase())
-        || r.participant_name.toLowerCase().replace(/\s+/g, '-'),
-      participant_name: r.participant_name,
-      participant_type: participantType,
-      tournament_id: null,
-      tournament_name: null,
-      tournament_mode: mode,
-      season_id: seasonId,
-      total_points: 0,
-      tournament_rank: r.rank || i + 1,
-      organizer_name: null,
-      wins: r.wins || 0,
-      losses: r.losses || 0,
-      mmr: r.mmr,
-      rn: 1,
-    }));
+    // For 2x2 mode: load team rosters from sheet_teams
+    let teamsMap = new Map();
+    if (mode === '2x2') {
+      const allTeams = query(
+        "SELECT team_name, player_a, player_b FROM sheet_teams WHERE season_id = ?",
+        [seasonId]
+      );
+      for (const t of allTeams) {
+        teamsMap.set(t.team_name.toLowerCase(), { player_a: t.player_a, player_b: t.player_b });
+      }
+    }
+
+    const result = ratings.map((r, i) => {
+      const entry = {
+        participant_id: playersMap.get(r.participant_name.toLowerCase())
+          || r.participant_name.toLowerCase().replace(/\s+/g, '-'),
+        participant_name: r.participant_name,
+        participant_type: participantType,
+        tournament_id: null,
+        tournament_name: null,
+        tournament_mode: mode,
+        season_id: seasonId,
+        total_points: 0,
+        tournament_rank: r.rank || i + 1,
+        organizer_name: null,
+        wins: r.wins || 0,
+        losses: r.losses || 0,
+        mmr: r.mmr,
+        rn: 1,
+      };
+      // Attach team roster for 2x2
+      if (mode === '2x2') {
+        const roster = teamsMap.get(r.participant_name.toLowerCase());
+        if (roster) {
+          entry.team_player_a = roster.player_a;
+          entry.team_player_b = roster.player_b;
+        }
+      }
+      return entry;
+    });
 
     return res.json({ leaderboard: result });
   }
@@ -1789,6 +1812,22 @@ app.get('/api/players/:playerId', (req, res) => {
     // Already in chronological order (sorted by match_number ASC)
   }
 
+  // Team roster (for 2x2 teams)
+  let teamMembers = null;
+  const teamRoster = queryOne(
+    'SELECT player_a, player_b FROM sheet_teams WHERE team_name = ? LIMIT 1',
+    [nickname]
+  );
+  if (!teamRoster) {
+    // Case-insensitive fallback
+    const allTeams = query('SELECT team_name, player_a, player_b FROM sheet_teams');
+    const nickLower = nickname.toLowerCase();
+    teamRoster = allTeams.find(t => t.team_name.toLowerCase() === nickLower) || null;
+  }
+  if (teamRoster) {
+    teamMembers = { playerA: teamRoster.player_a, playerB: teamRoster.player_b };
+  }
+
   res.json({
     playerId: participant?.id ?? playerRecord?.id ?? playerId,
     nickname,
@@ -1801,6 +1840,7 @@ app.get('/api/players/:playerId', (req, res) => {
     playerType,
     mmrHistory,
     history,
+    teamMembers,
   });
 });
 

@@ -371,6 +371,8 @@ function enrichStandings(entries: LeaderboardEntry[]): StandingEntry[] {
       seasonId: entry.season_id ?? null,
       isTeam: entry.participant_type === 'team',
       organizerName: entry.organizer_name,
+      teamPlayerA: entry.team_player_a ?? null,
+      teamPlayerB: entry.team_player_b ?? null,
     };
   });
 }
