@@ -20,7 +20,7 @@ export function AnimatedBackground() {
       
       {/* Layer 2: flowing white/purple gradient shapes */}
       <div
-        className="absolute inset-0 animate-awesome-bg"
+        className="absolute inset-0 awesome-bg-anim"
         style={{
           background: `
             radial-gradient(circle at 20% 30%, rgba(255,255,255,0.15) 0%, transparent 40%),
@@ -35,7 +35,7 @@ export function AnimatedBackground() {
 
       {/* Layer 3: subtle animated shapes */}
       <div
-        className="absolute inset-0 animate-awesome-shapes"
+        className="absolute inset-0 awesome-shapes-anim"
         style={{
           background: `
             radial-gradient(ellipse at 40% 60%, rgba(192,132,252,0.12) 0%, transparent 50%),

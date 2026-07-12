@@ -692,11 +692,11 @@ body {
   100% { background-position: 0% 50%; }
 }
 
-.animate-awesome-bg {
+.awesome-bg-anim {
   animation: awesome-bg-flow 25s ease-in-out infinite;
 }
 
-.animate-awesome-shapes {
+.awesome-shapes-anim {
   animation: awesome-shapes-flow 18s ease-in-out infinite;
 }
 
