@@ -250,6 +250,9 @@ export interface PlayerTournamentEntry {
   rank: number;
   totalPoints?: number;
   mmr?: number;
+  mmrBefore?: number | null;
+  mmrAfter?: number | null;
+  isWinner?: number | null;
   wins?: number;
   losses?: number;
   completedAt?: string | null;
