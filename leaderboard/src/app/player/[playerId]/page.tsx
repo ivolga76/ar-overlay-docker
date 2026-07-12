@@ -37,6 +37,49 @@ function formatShortDate(dateStr: string | null): string {
   } catch { return ''; }
 }
 
+/** Catmull-Rom → cubic Bézier spline through all data points. */
+function buildSplinePath(
+  pts: { x: number; y: number }[]
+): string {
+  const n = pts.length;
+  if (n < 2) return '';
+  if (n === 2) return `M ${pts[0].x},${pts[0].y} L ${pts[1].x},${pts[1].y}`;
+
+  // Compute tangents (Catmull-Rom: (P_{i+1} - P_{i-1}) / 6)
+  const tangents: { x: number; y: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    if (i === 0) {
+      // First point: reflect P1-P0
+      tangents.push({
+        x: (pts[1].x - pts[0].x) / 3,
+        y: (pts[1].y - pts[0].y) / 3,
+      });
+    } else if (i === n - 1) {
+      // Last point: reflect P_{n-1}-P_{n-2}
+      tangents.push({
+        x: (pts[n - 1].x - pts[n - 2].x) / 3,
+        y: (pts[n - 1].y - pts[n - 2].y) / 3,
+      });
+    } else {
+      tangents.push({
+        x: (pts[i + 1].x - pts[i - 1].x) / 6,
+        y: (pts[i + 1].y - pts[i - 1].y) / 6,
+      });
+    }
+  }
+
+  // Build cubic Bézier segments: M P0 C cp1_0,cp2_0, P1 C cp1_1,cp2_1, P2 ...
+  let d = `M ${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < n - 1; i++) {
+    const cp1x = pts[i].x + tangents[i].x;
+    const cp1y = pts[i].y + tangents[i].y;
+    const cp2x = pts[i + 1].x - tangents[i + 1].x;
+    const cp2y = pts[i + 1].y - tangents[i + 1].y;
+    d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${pts[i + 1].x},${pts[i + 1].y}`;
+  }
+  return d;
+}
+
 function MmrSparkline({ history }: { history: MMRHistoryEntry[] }) {
   if (history.length < 2) return null;
 
@@ -54,9 +97,10 @@ function MmrSparkline({ history }: { history: MMRHistoryEntry[] }) {
   const scaleY = (v: number) => padding.top + chartH - ((v - yMin) / yRange) * chartH;
   const scaleX = (i: number) => padding.left + (i / (history.length - 1)) * chartW;
 
-  const points = history.map((h, i) => `${scaleX(i)},${scaleY(h.mmr)}`);
-  const linePath = points.join(' L ');
-  const areaPath = `M ${scaleX(0)},${padding.top + chartH} L ${linePath} L ${scaleX(history.length - 1)},${padding.top + chartH} Z`;
+  const pts = history.map((h, i) => ({ x: scaleX(i), y: scaleY(h.mmr) }));
+  const linePath = buildSplinePath(pts);
+  const baseline = padding.top + chartH;
+  const areaPath = `M ${pts[0].x},${baseline} ${linePath.slice(1)} L ${pts[pts.length - 1].x},${baseline} Z`;
 
   const yTicks = [yMax, (yMax + yMin) / 2, yMin].map((v) => Math.round(v));
   const dateTicks = [
@@ -74,7 +118,7 @@ function MmrSparkline({ history }: { history: MMRHistoryEntry[] }) {
         </g>
       ))}
       <path d={areaPath} fill="url(#mmrGradient)" opacity="0.3" />
-      <path d={`M ${linePath}`} fill="none" stroke="url(#mmrLineGradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={linePath} fill="none" stroke="url(#mmrLineGradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       {history.map((h, i) => (
         <circle key={i} cx={scaleX(i)} cy={scaleY(h.mmr)} r="3" fill="#00e5ff" stroke="#0a0a0c" strokeWidth="1.5">
           <title>{h.tournamentName}: {h.mmr} MMR ({formatShortDate(h.date)})</title>
