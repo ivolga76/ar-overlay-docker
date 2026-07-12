@@ -1,6 +1,7 @@
 'use client';
-// AnimatedBackground — движущаяся сетка и частицы за Hero-секцией
-// Pure CSS + небольшой JS для генерации частиц
+// AnimatedBackground — Embark Studios style: большие размытые градиентные орбы,
+// движущаяся сетка и плавающие частицы на тёмном фоне.
+// Pure CSS для орбов + сетки, JS для генерации частиц.
 
 import { useEffect, useRef } from 'react';
 
@@ -9,12 +10,15 @@ interface AnimatedBackgroundProps {
   grid?: boolean;
   /** Количество плавающих частиц */
   particleCount?: number;
+  /** Показывать градиентные орбы */
+  orbs?: boolean;
   className?: string;
 }
 
 export function AnimatedBackground({
   grid = true,
-  particleCount = 15,
+  particleCount = 20,
+  orbs = true,
   className = '',
 }: AnimatedBackgroundProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -26,15 +30,23 @@ export function AnimatedBackground({
     const particles: HTMLDivElement[] = [];
     for (let i = 0; i < particleCount; i++) {
       const particle = document.createElement('div');
-      particle.className = 'particle';
+      particle.className = 'bg-particle';
       particle.style.setProperty('--x', `${Math.random() * 100}%`);
-      particle.style.setProperty('--duration', `${4 + Math.random() * 8}s`);
-      particle.style.setProperty('--delay', `${Math.random() * 5}s`);
-      // Случайный цвет: cyan или magenta
-      particle.style.background =
-        Math.random() > 0.5
-          ? 'var(--color-accent-cyan)'
-          : 'var(--color-accent-magenta)';
+      particle.style.setProperty('--y-start', `${Math.random() * 100}%`);
+      particle.style.setProperty('--duration', `${8 + Math.random() * 16}s`);
+      particle.style.setProperty('--delay', `${Math.random() * 10}s`);
+      particle.style.setProperty('--size', `${1 + Math.random() * 2}px`);
+      // Случайный цвет: cyan, gold, white
+      const colors = [
+        'var(--color-accent-cyan)',
+        'var(--color-accent-gold)',
+        'rgba(255,255,255,0.6)',
+        'var(--color-accent-primary)',
+      ];
+      particle.style.setProperty(
+        '--color',
+        colors[Math.floor(Math.random() * colors.length)]
+      );
       container.appendChild(particle);
       particles.push(particle);
     }
@@ -44,12 +56,13 @@ export function AnimatedBackground({
     };
   }, [particleCount]);
 
+  const orbClass = orbs ? 'bg-animated-orbs' : '';
   const gridClass = grid ? 'bg-animated-grid' : '';
 
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 overflow-hidden pointer-events-none ${gridClass} ${className}`}
+      className={`embark-bg absolute inset-0 overflow-hidden pointer-events-none ${orbClass} ${gridClass} ${className}`}
       aria-hidden="true"
     />
   );

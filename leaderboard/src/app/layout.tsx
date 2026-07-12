@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Urbanist, Barlow, JetBrains_Mono, Prompt } from "next/font/google";
 import { RainbowBar } from "@/components/RainbowBar";
+import { AnimatedBackground } from "@/components/AnimatedBackground";
 import "./globals.css";
 
 const urbanist = Urbanist({
@@ -56,6 +57,7 @@ export default function RootLayout({
       className={`${urbanist.variable} ${barlow.variable} ${jetbrainsMono.variable} ${prompt.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col grunge-overlay leaderboard-shell">
+        <AnimatedBackground orbs particleCount={20} grid />
         <RainbowBar />
         <header className="sticky top-3 z-50 mx-auto w-full max-w-6xl px-4 pt-2">
           <nav className="leaderboard-nav">
