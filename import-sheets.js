@@ -105,7 +105,7 @@ function parseRatings(rows) {
     const lossesRaw = r[5]?.trim();
 
     if (!nick || nick === 'Ник' || nick === 'Команда') continue;
-    if (place.startsWith('#')) continue; // #REF!
+    // #REF! in rank column — player still valid, just skip the broken rank value
     if (place === 'Telegram:' || place === 'Twitch:' || place === 'YouTube:' || place === 'Discord:' || place === 'Boosty:') continue;
 
     players.push({
