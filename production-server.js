@@ -1763,24 +1763,26 @@ app.get('/api/players/:playerId', (req, res) => {
   let totalWins = 0;
   let totalLosses = 0;
 
+  // Collect sheet matches for this player (used for history + Elo simulation)
+  let playerSheetMatches = [];
+
   // If no tournament history, build it from sheet_matches
   if (history.length === 0) {
-    const allSheetForHistory = query(
+    playerSheetMatches = query(
       `SELECT * FROM sheet_matches
        WHERE player_a = ? OR player_b = ?
        ORDER BY match_number`,
       [nickname, nickname]
     );
-    if (allSheetForHistory.length === 0) {
+    if (playerSheetMatches.length === 0) {
       const allM = query('SELECT * FROM sheet_matches ORDER BY match_number');
       const searchLower = nickname.toLowerCase();
-      const filtered = allM.filter(
+      playerSheetMatches = allM.filter(
         m => (m.player_a || '').toLowerCase() === searchLower
           || (m.player_b || '').toLowerCase() === searchLower
       );
-      allSheetForHistory.push(...filtered);
     }
-    for (const m of allSheetForHistory) {
+    for (const m of playerSheetMatches) {
       const isWin = m.winner && m.winner.toLowerCase() === nickname.toLowerCase();
       history.push({
         tournamentId: m.id,
@@ -1801,25 +1803,69 @@ app.get('/api/players/:playerId', (req, res) => {
   totalLosses = history.filter(h => h.isWinner === 0).length;
   const totalTournaments = history.length;
 
-
-
   const mmrHistory = [];
-  for (const h of history) {
-    const hMmr = h.mmrAfter ?? 1000;
-    if (hMmr > peakMmr) peakMmr = hMmr;
-    // Map fields for frontend
-    h.mmr = hMmr;
-    // Build chart data (only entries with valid MMR and date)
-    if (h.mmrAfter != null && h.completedAt) {
-      mmrHistory.push({
-        tournamentName: h.tournamentName,
-        date: h.completedAt,
-        mmr: hMmr,
-      });
+
+  // Check if we have real tournament Elo data (mmrAfter from tournament_standings)
+  const hasRealElo = history.some(h => h.mmrAfter != null);
+
+  if (hasRealElo) {
+    // Use real tournament Elo data — existing logic
+    for (const h of history) {
+      const hMmr = h.mmrAfter ?? 1000;
+      if (hMmr > peakMmr) peakMmr = hMmr;
+      h.mmr = hMmr;
+      if (h.mmrAfter != null && h.completedAt) {
+        mmrHistory.push({
+          tournamentName: h.tournamentName,
+          date: h.completedAt,
+          mmr: hMmr,
+        });
+      }
     }
+    // Reverse to chronological order for chart (oldest first)
+    mmrHistory.reverse();
+  } else if (playerSheetMatches.length > 0) {
+    // ── Retrospective Elo simulation ──────────────────────────
+    // Walk ALL sheet matches in chronological order, updating every player's
+    // MMR after each match. This reconstructs the Elo trajectory for any
+    // player using only match results — no pre-computed MMR required.
+    const allSeasonMatches = query(
+      'SELECT * FROM sheet_matches WHERE season_id = ? ORDER BY match_number',
+      [playerSheetMatches[0].season_id]
+    );
+
+    // Map: player/team name → current Elo (starts at 1000)
+    const mmrMap = {};
+
+    for (const m of allSeasonMatches) {
+      const mmrA = mmrMap[m.player_a] ?? 1000;
+      const mmrB = mmrMap[m.player_b] ?? 1000;
+
+      // Determine winner side — use match.winner to decide who won
+      const winnerIsA = m.winner
+        && m.winner.toLowerCase() === m.player_a.toLowerCase();
+
+      const { newMmrA, newMmrB } = eloUpdate(mmrA, mmrB, winnerIsA);
+
+      mmrMap[m.player_a] = newMmrA;
+      mmrMap[m.player_b] = newMmrB;
+
+      // If this match involves our player, record the data point
+      const isPlayerA = m.player_a.toLowerCase() === nickname.toLowerCase();
+      const isPlayerB = m.player_b.toLowerCase() === nickname.toLowerCase();
+
+      if (isPlayerA || isPlayerB) {
+        const playerMmr = isPlayerA ? newMmrA : newMmrB;
+        if (playerMmr > peakMmr) peakMmr = playerMmr;
+        mmrHistory.push({
+          tournamentName: `Матч #${m.match_number} (${m.format || 'pvp'})`,
+          date: m.match_date || m.created_at,
+          mmr: playerMmr,
+        });
+      }
+    }
+    // Already in chronological order (sorted by match_number ASC)
   }
-  // Reverse to chronological order for chart (oldest first)
-  mmrHistory.reverse();
 
   res.json({
     playerId: participant?.id ?? playerRecord?.id ?? playerId,
