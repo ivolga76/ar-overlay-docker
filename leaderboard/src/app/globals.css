@@ -674,6 +674,32 @@ body {
   animation: gradient-shift 20s ease infinite;
 }
 
+/* ===============================================================
+   Awesome Animated Background - purple/white flow
+   =============================================================== */
+
+@keyframes awesome-bg-flow {
+  0%   { background-position: 0% 0%; }
+  25%  { background-position: 40% 60%; }
+  50%  { background-position: 80% 20%; }
+  75%  { background-position: 30% 80%; }
+  100% { background-position: 0% 0%; }
+}
+
+@keyframes awesome-shapes-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-awesome-bg {
+  animation: awesome-bg-flow 25s ease-in-out infinite;
+}
+
+.animate-awesome-shapes {
+  animation: awesome-shapes-flow 18s ease-in-out infinite;
+}
+
 /* ═══════════════════════════════════════════════════════
    Progress bar (rainbow animated)
    ═══════════════════════════════════════════════════════ */

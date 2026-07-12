@@ -2,58 +2,70 @@ import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-await page.goto('https://www.embark-studios.com/', { waitUntil: 'load', timeout: 30000 });
+
+// Try to access the CodePen directly
+await page.goto('https://codepen.io/beshoooo/pen/jmbGNd', { waitUntil: 'load', timeout: 30000 });
 await page.waitForTimeout(5000);
 
-const info = await page.evaluate(() => {
-  // Check videos more carefully
-  const videos = document.querySelectorAll('video');
-  const videoDetails = Array.from(videos).map(v => {
-    const src = v.querySelector('source')?.src || v.src;
-    const cs = window.getComputedStyle(v);
-    return {
-      src,
-      currentSrc: v.currentSrc,
-      width: v.videoWidth,
-      height: v.videoHeight,
-      duration: v.duration,
-      position: cs.position,
-      zIndex: cs.zIndex,
-      opacity: cs.opacity,
-      top: cs.top,
-      left: cs.left,
-      width_css: cs.width,
-      height_css: cs.height,
-      objectFit: cs.objectFit,
-      parent: v.parentElement?.tagName,
-      parentClasses: v.parentElement?.className
-    };
-  });
+// Extract the code from CodePen's editor
+const code = await page.evaluate(() => {
+  // CodePen stores code in textareas or pre elements
+  const htmlEditor = document.querySelector('.code-box .CodeMirror');
+  const lines = document.querySelectorAll('.CodeMirror-line');
   
-  // Check for iframes
-  const iframes = document.querySelectorAll('iframe');
-  const iframeDetails = Array.from(iframes).map(f => ({ src: f.src, id: f.id }));
+  // Try getting code from CodePen's data
+  const penData = window.__DATA__ || window.__INITIAL_STATE__;
   
-  // Check all background-images in the page
-  const allBgImages = new Set();
-  document.querySelectorAll('*').forEach(el => {
-    const bg = window.getComputedStyle(el).backgroundImage;
-    if (bg && bg !== 'none') allBgImages.add(bg);
-  });
-  
-  // Check first section's inner elements
-  const firstSection = document.querySelector('section');
-  const sectionHTML = firstSection?.innerHTML?.substring(0, 2000);
+  // Also try grabbing from iframe
+  const resultIframe = document.querySelector('iframe[name*="result"]');
   
   return {
-    videos: videoDetails,
-    iframes: iframeDetails,
-    bgImages: Array.from(allBgImages).slice(0, 10),
-    firstSectionHTML: sectionHTML,
-    // Look for Squarespace background wrapper
-    bgWrapper: document.querySelector('.section-background')?.innerHTML?.substring(0, 1000),
+    hasPenData: !!penData,
+    linesCount: lines.length,
+    lineTexts: Array.from(lines).slice(0, 30).map(l => l.textContent),
+    title: document.title,
+    bodyText: document.body.innerText?.substring(0, 500)
   };
 });
 
-console.log(JSON.stringify(info, null, 2));
+console.log(JSON.stringify(code, null, 2));
+
+// Try the "full page" version
+await page.goto('https://codepen.io/beshoooo/full/jmbGNd', { waitUntil: 'load', timeout: 30000 });
+await page.waitForTimeout(3000);
+
+const fullPage = await page.evaluate(() => {
+  const style = document.querySelector('style');
+  const bodyStyle = window.getComputedStyle(document.body);
+  const htmlStyle = window.getComputedStyle(document.documentElement);
+  
+  // Get all style tags
+  const styles = Array.from(document.querySelectorAll('style')).map(s => s.textContent?.substring(0, 500));
+  
+  // Get background info of all elements
+  const bgElements = Array.from(document.querySelectorAll('div, section, body, html')).filter(el => {
+    const bg = window.getComputedStyle(el).backgroundImage;
+    return bg && bg !== 'none';
+  }).map(el => ({
+    tag: el.tagName,
+    classes: el.className,
+    bg: window.getComputedStyle(el).background,
+    bgImage: window.getComputedStyle(el).backgroundImage,
+    animation: window.getComputedStyle(el).animation
+  }));
+  
+  return {
+    title: document.title,
+    bodyBg: bodyStyle.background,
+    bodyBgImage: bodyStyle.backgroundImage,
+    bodyAnimation: bodyStyle.animation,
+    htmlBg: htmlStyle.backgroundImage,
+    styleTags: styles,
+    bgElements,
+    innerHTML: document.body.innerHTML?.substring(0, 2000)
+  };
+});
+
+console.log(JSON.stringify(fullPage, null, 2));
+
 await browser.close();
