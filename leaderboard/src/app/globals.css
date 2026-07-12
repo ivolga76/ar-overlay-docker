@@ -690,19 +690,19 @@ body {
   width: 0;
   opacity: 0.75;
   background: white;
-  box-shadow: 0 0 15px 2px white;
+  box-shadow: 0 0 30px 4px white;
 }
 
-/* Different positions */
-.x1 { left: 5%;  animation: floatUp 4s infinite linear; transform: scale(0.5); }
-.x2 { left: 15%; animation: floatUp 7s infinite linear; transform: scale(1.6); }
-.x3 { left: 25%; animation: floatUp 2.5s infinite linear; transform: scale(0.5); }
-.x4 { left: 35%; animation: floatUp 4.5s infinite linear; transform: scale(1.2); }
-.x5 { left: 45%; animation: floatUp 8s infinite linear; transform: scale(2.2); }
-.x6 { left: 55%; animation: floatUp 3s infinite linear; transform: scale(0.8); }
-.x7 { left: 65%; animation: floatUp 5s infinite linear; transform: scale(1.5); }
-.x8 { left: 75%; animation: floatUp 6s infinite linear; transform: scale(1.1); }
-.x9 { left: 85%; animation: floatUp 3.5s infinite linear; transform: scale(0.6); }
+/* Different positions (×2 slower) */
+.x1 { left: 5%;  animation: floatUp 8s infinite linear; transform: scale(0.5); }
+.x2 { left: 15%; animation: floatUp 14s infinite linear; transform: scale(1.6); }
+.x3 { left: 25%; animation: floatUp 5s infinite linear; transform: scale(0.5); }
+.x4 { left: 35%; animation: floatUp 9s infinite linear; transform: scale(1.2); }
+.x5 { left: 45%; animation: floatUp 16s infinite linear; transform: scale(2.2); }
+.x6 { left: 55%; animation: floatUp 6s infinite linear; transform: scale(0.8); }
+.x7 { left: 65%; animation: floatUp 10s infinite linear; transform: scale(1.5); }
+.x8 { left: 75%; animation: floatUp 12s infinite linear; transform: scale(1.1); }
+.x9 { left: 85%; animation: floatUp 7s infinite linear; transform: scale(0.6); }
 
 /* ═══════════════════════════════════════════════════════
    Progress bar (rainbow animated)
