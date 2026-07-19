@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
   status       TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','active','completed')),
   total_rounds INTEGER NOT NULL DEFAULT 3,
   matchup_type TEXT CHECK(matchup_type IN ('mirrored','mixed')),
+  type         TEXT CHECK(type IN ('pve','pvp','pvpve')),
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   started_at   TEXT,
   completed_at TEXT
