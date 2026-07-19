@@ -21,20 +21,22 @@ export default function TournamentsList() {
   const [formRounds, setFormRounds] = useState(3);
   const [formSeasonId, setFormSeasonId] = useState('');
   const [filterSeasonId, setFilterSeasonId] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [formType, setFormType] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const loadTournaments = useCallback(async () => {
     if (!token) return;
     try {
       setError(null);
-      const list = await getTournaments(token, filterSeasonId || undefined);
+      const list = await getTournaments(token, filterSeasonId || undefined, filterType || undefined);
       setTournaments(list);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [token, filterSeasonId]);
+  }, [token, filterSeasonId, filterType]);
 
   const loadSeasons = useCallback(async () => {
     if (!token) return;
@@ -82,6 +84,7 @@ export default function TournamentsList() {
         mode: formMode,
         totalRounds: formRounds,
         season_id: formSeasonId || undefined,
+        type: formType || undefined,
       }, token);
       setShowCreate(false);
       setFormName('');
@@ -162,6 +165,16 @@ export default function TournamentsList() {
               ))}
             </select>
           )}
+          <select
+            value={filterType}
+            onChange={(e) => { setFilterType(e.target.value); setLoading(true); }}
+            style={{ padding: '4px 8px', fontSize: 12 }}
+          >
+            <option value="">Все типы</option>
+            <option value="pve">PvE</option>
+            <option value="pvp">PvP</option>
+            <option value="pvpve">PvPvE</option>
+          </select>
         </div>
         <button
           className="roulette-btn"
@@ -211,6 +224,15 @@ export default function TournamentsList() {
                 style={{ width: '100%' }}
               />
             </label>
+            <label style={{ flex: '0 0 100px' }}>
+              <span className="eyebrow">Тип</span>
+              <select value={formType} onChange={(e) => setFormType(e.target.value)} style={{ width: '100%' }}>
+                <option value="">—</option>
+                <option value="pve">PvE</option>
+                <option value="pvp">PvP</option>
+                <option value="pvpve">PvPvE</option>
+              </select>
+            </label>
             {seasons.length > 0 && (
               <label style={{ flex: '0 0 150px' }}>
                 <span className="eyebrow">Сезон</span>
@@ -247,6 +269,18 @@ export default function TournamentsList() {
                   <span style={{ color: 'var(--muted)', fontSize: 12, marginLeft: 10 }}>
                     {t.mode} · {t.total_rounds} раундов
                   </span>
+                  {t.type && (
+                    <span style={{
+                      color: 'var(--accent)',
+                      fontSize: 11,
+                      marginLeft: 8,
+                      padding: '1px 6px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                    }}>
+                      {t.type.toUpperCase()}
+                    </span>
+                  )}
                   {t.season_id && (
                     <span style={{ color: 'var(--cyan)', fontSize: 11, marginLeft: 8 }}>
                       {seasonName(t.season_id)}

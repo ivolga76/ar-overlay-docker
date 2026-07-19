@@ -485,7 +485,7 @@ app.post('/api/tournaments', (req, res) => {
   const user = requireAuth(req, res);
   if (!user) return;
 
-  const { name, mode, totalRounds, season_id, participants, tasks } = req.body || {};
+  const { name, mode, totalRounds, season_id, type, participants, tasks } = req.body || {};
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Название турнира обязательно' });
   }
@@ -493,6 +493,7 @@ app.post('/api/tournaments', (req, res) => {
   if (mode && mode !== '1x1' && mode !== '2x2') {
     return res.status(400).json({ error: 'Режим должен быть 1x1 или 2x2' });
   }
+  const tournamentType = (type && ['pve','pvp','pvpve'].includes(type)) ? type : null;
   const tournamentMode = mode === '2x2' ? '2x2' : '1x1';
   const rounds = Math.max(1, Math.min(20, parseInt(totalRounds) || 3));
   const tournamentId = randomUUID();
@@ -508,8 +509,8 @@ app.post('/api/tournaments', (req, res) => {
   }
 
   run(
-    'INSERT INTO tournaments (id, user_id, season_id, name, mode, status, total_rounds) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [tournamentId, user.id, resolvedSeasonId, name.trim(), tournamentMode, 'draft', rounds]
+    'INSERT INTO tournaments (id, user_id, season_id, name, mode, type, status, total_rounds) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [tournamentId, user.id, resolvedSeasonId, name.trim(), tournamentMode, tournamentType, 'draft', rounds]
   );
 
   // Create participants
@@ -589,13 +590,17 @@ app.get('/api/tournaments', (req, res) => {
   const user = requireAuth(req, res);
   if (!user) return;
 
-  const { season_id } = req.query;
+  const { season_id, type } = req.query;
   let sql = 'SELECT * FROM tournaments WHERE user_id = ?';
   const params = [user.id];
 
   if (season_id) {
     sql += ' AND season_id = ?';
     params.push(season_id);
+  }
+  if (type && ['pve','pvp','pvpve'].includes(type)) {
+    sql += ' AND type = ?';
+    params.push(type);
   }
 
   sql += ' ORDER BY created_at DESC';

@@ -29,9 +29,12 @@ export async function getSeasons(token) {
 
 // ── Tournaments ──────────────────────────────────────────────
 
-export async function getTournaments(token, seasonId) {
-  const qs = seasonId ? `?season_id=${seasonId}` : '';
-  const data = await apiCall(`/api/tournaments${qs}`, { token });
+export async function getTournaments(token, seasonId, type) {
+  const params = new URLSearchParams();
+  if (seasonId) params.set('season_id', seasonId);
+  if (type) params.set('type', type);
+  const qs = params.toString();
+  const data = await apiCall(`/api/tournaments${qs ? `?${qs}` : ''}`, { token });
   return data.tournaments;
 }
 
