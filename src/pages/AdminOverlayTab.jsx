@@ -51,8 +51,9 @@ export default function AdminOverlayTab({
 
   // ── Contracts state (must be before roulettePool) ─────────
   const { token } = useAuth();
-  const [contractPool, setContractPool] = useState([]);
+  const [contractPool, setContractPool] = useState([]);   // ALL contracts from API (unfiltered)
   const [contractsLoaded, setContractsLoaded] = useState(false);
+  const [boostyEnabled, setBoostyEnabled] = useState(false);
 
   // Season-aware labels (must be before roulettePool)
   const currentSeasonId = getStoredSeasonId();
@@ -60,17 +61,27 @@ export default function AdminOverlayTab({
   const taskLabel = isSeason2 ? 'Контракты' : 'Задачи';
   const taskLabelSingular = isSeason2 ? 'контракт' : 'задание';
 
+  // Effective pool: tournament-type contracts + (optionally) boosty contracts
+  const effectiveContractPool = useMemo(() => {
+    if (!contractsLoaded) return [];
+    return contractPool.filter((c) => {
+      if (c.category === tournamentType) return true;
+      if (boostyEnabled && c.category === 'boosty') return true;
+      return false;
+    });
+  }, [contractPool, contractsLoaded, tournamentType, boostyEnabled]);
+
   // Roulette: season 2 uses contracts, season 1 uses task templates
   const roulettePool = useMemo(() => {
     if (isSeason2) {
       if (!contractsLoaded) return [];
       const usedTexts = new Set(state.tasks.map((t) => t.text.trim()));
-      return contractPool.filter((c) => !usedTexts.has(c.text.trim()));
+      return effectiveContractPool.filter((c) => !usedTexts.has(c.text.trim()));
     }
     const allTemplates = getTemplates().tasks;
     const usedTexts = new Set(state.tasks.map((t) => t.text.trim()));
     return allTemplates.filter((tpl) => !usedTexts.has(tpl.text));
-  }, [state.tasks, isSeason2, contractsLoaded, contractPool]);
+  }, [state.tasks, isSeason2, contractsLoaded, effectiveContractPool]);
 
   const [spinning, setSpinning] = useState(false);
   const [spinningText, setSpinningText] = useState('');
@@ -91,7 +102,8 @@ export default function AdminOverlayTab({
     if (!token) return;
     const seasonId = getStoredSeasonId();
     try {
-      const list = await getContracts(seasonId, token, tournamentType, false);
+      // Load ALL contracts (no category filter); we filter locally
+      const list = await getContracts(seasonId, token, undefined, false);
       setContractPool(list);
       setContractsLoaded(true);
     } catch {
@@ -104,8 +116,8 @@ export default function AdminOverlayTab({
   const contractRoulettePool = useMemo(() => {
     if (!contractsLoaded) return [];
     const usedTexts = new Set(state.tasks.map((t) => t.text.trim()));
-    return contractPool.filter((c) => !usedTexts.has(c.text.trim()));
-  }, [contractPool, state.tasks, contractsLoaded]);
+    return effectiveContractPool.filter((c) => !usedTexts.has(c.text.trim()));
+  }, [effectiveContractPool, state.tasks, contractsLoaded]);
 
   const [spinningContract, setSpinningContract] = useState(false);
   const [spinningContractText, setSpinningContractText] = useState('');
@@ -333,12 +345,25 @@ export default function AdminOverlayTab({
 
         <section className="admin-card tech-panel">
           <p className="eyebrow">Рулетка (виджет оверлея)</p>
+          {isSeason2 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 14, cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={boostyEnabled}
+                onChange={(e) => setBoostyEnabled(e.target.checked)}
+                style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--magenta)' }}
+              />
+              <span style={{ color: boostyEnabled ? 'var(--magenta)' : 'var(--muted)' }}>
+                Boosty {boostyEnabled ? '✓' : ''}
+              </span>
+            </label>
+          )}
           <div className="button-pair" style={{ marginTop: 8 }}>
-            {isSeason2 && contractPool.length > 0 && (
+            {isSeason2 && effectiveContractPool.length > 0 && (
               <button
                 type="button"
                 className="roulette-btn"
-                onClick={() => setRouletteItems(contractPool)}
+                onClick={() => setRouletteItems(effectiveContractPool)}
                 title="Загрузить все контракты в рулетку"
                 style={{ background: 'rgba(255,0,128,0.1)', borderColor: 'var(--magenta)' }}
               >
