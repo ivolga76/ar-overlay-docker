@@ -40,6 +40,7 @@ export default function AdminOverlayTab({
   spinRoulette,
   setRouletteItems,
   resetTasks,
+  tournamentType,
 }) {
   const [playerName, setPlayerName] = useState('');
   const [teamName, setTeamName] = useState('');
@@ -90,7 +91,7 @@ export default function AdminOverlayTab({
     if (!token) return;
     const seasonId = getStoredSeasonId();
     try {
-      const list = await getContracts(seasonId, token, undefined, false);
+      const list = await getContracts(seasonId, token, tournamentType, false);
       setContractPool(list);
       setContractsLoaded(true);
     } catch {

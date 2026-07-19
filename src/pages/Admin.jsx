@@ -504,6 +504,7 @@ export default function Admin() {
               spinRoulette={spinRoulette}
               setRouletteItems={setRouletteItems}
               resetTasks={resetTasks}
+              tournamentType={activeTournament?.type || 'pve'}
             />
           ) : activeTab === 'templates' ? (
             <Templates
